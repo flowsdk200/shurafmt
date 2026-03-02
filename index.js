@@ -14,14 +14,13 @@ import usersDb from './src/database/users.js'
 import groupsDb from './src/database/groups.js'
 import { closeMongo } from './src/database/mongo.js'
 import { sendGreetingMessage } from './src/utils/greetings.js'
+import { normalizeJid } from './src/utils/jid.js'
 
 /** Simple readline interface for interactive pairing code request **/
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
 const question = (text) => new Promise((resolve) => rl.question(text, resolve))
 
 const msgRetryCounterCache = new NodeCache()
-/** Group metadata cache — 5 min TTL to prevent WA rate limiting **/
-const groupCache = new NodeCache({ stdTTL: 5 * 60, useClones: false })
 let activeSock = null
 
 const ownerJids = (config.ownerNumbers || [])
@@ -66,7 +65,7 @@ async function connectToWhatsApp() {
             const msg = store.getMessage(key)
             return msg?.message || { conversation: 'p' }
         },
-        cachedGroupMetadata: async (jid) => groupCache.get(jid)
+        cachedGroupMetadata: async () => undefined
     }
 
     const sock = makeWASocket(socketConfig)
@@ -74,11 +73,9 @@ async function connectToWhatsApp() {
     sock.autoRead = config.autoRead !== false
     sock.public = !config.selfMode
 
-    /** Attach cache to sock so handler can access it **/
-    sock._groupCache = groupCache
-
-    /** Attach groupCache reference ke store agar group-participants.update bisa invalidate cache **/
-    store._groupCache = groupCache
+    /** Disable custom group metadata cache to avoid stale admin checks on deployment env **/
+    sock._groupCache = null
+    store._groupCache = null
 
     /** Bind store ke semua socket events **/
     store.bind(sock.ev)
@@ -140,30 +137,35 @@ async function connectToWhatsApp() {
     sock.ev.on('group-participants.update', async ({ id, participants, action }) => {
         try {
             if (!id?.endsWith('@g.us')) return
-            if (!Array.isArray(participants) || !participants.length) return
+            const rawList = Array.isArray(participants) ? participants : [participants]
+            const participantList = rawList
+                .map((p) => typeof p === 'string' ? p : (p?.id || p?.jid || p?.participant || ''))
+                .filter(Boolean)
+            if (!participantList.length) return
 
-            const isJoin = action === 'add'
-            const isLeave = action === 'remove' || action === 'leave'
-            if (!isJoin && !isLeave) return
+            if (action === 'promote' || action === 'demote') return
+
+            const meta = await sock.groupMetadata(id).catch(() => null)
+            const currentMembers = new Set((meta?.participants || [])
+                .map((x) => normalizeJid(x.id) || x.id)
+                .filter(Boolean))
 
             const welcomeOn = groupsDb.getSetting(id, 'welcome', true) === true
             const goodbyeOn = groupsDb.getSetting(id, 'goodbye', true) === true
-            if ((isJoin && !welcomeOn) || (isLeave && !goodbyeOn)) return
 
-            let meta = groupCache.get(id)
-            if (!meta) {
-                meta = await sock.groupMetadata(id).catch(() => null)
-                if (meta) groupCache.set(id, meta)
-            }
+            for (const p of participantList) {
+                const normalized = normalizeJid(p) || p
+                const isJoin = action === 'add' ? true : action === 'remove' || action === 'leave' ? false : currentMembers.has(normalized)
 
-            for (const p of participants) {
+                if ((isJoin && !welcomeOn) || (!isJoin && !goodbyeOn)) continue
+
                 await sendGreetingMessage({
                     sock,
                     config,
                     groupId: id,
                     participant: p,
                     groupMetadata: meta,
-                    isWelcome: isJoin
+                    isWelcome: isJoin === true
                 })
             }
         } catch (err) {

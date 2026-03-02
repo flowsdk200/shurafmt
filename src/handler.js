@@ -188,11 +188,8 @@ export const handleMessage = async (sock, m) => {
         if (!botJid) return
 
         const getGroupMetadata = async (jid) => {
-            const cached = sock._groupCache?.get(jid)
-            if (cached) return cached
             try {
                 const meta = await sock.groupMetadata(jid)
-                sock._groupCache?.set(jid, meta)
 
                 /** SuraBails punya TODO resmi di groups.js:315 — tidak otomatis simpan
                  *  LID mapping saat groupMetadata di-fetch. Kita isi lidCache manual di sini:
