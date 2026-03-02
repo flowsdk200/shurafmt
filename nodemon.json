@@ -1,0 +1,11 @@
+{
+    "ignore": [
+        "session/*",
+        "node_modules/*",
+        "*.json",
+        "package-lock.json",
+        "npm-debug.log",
+        ".git/*"
+    ],
+    "ext": "js"
+}
