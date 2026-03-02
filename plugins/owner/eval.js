@@ -5,6 +5,7 @@ export default {
     name: 'eval',
     noPrefix: true,
     ownerOnly: true,
+    silentUnauthorized: true,
     description: 'Eval JS / shell — hanya owner',
 
     match: (body) =>
