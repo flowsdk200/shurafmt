@@ -131,8 +131,6 @@ class WAStore {
                 } else {
                     this.groupMetadata[update.id] = update
                 }
-                /** Invalidate groupCache agar handler ambil data fresh **/
-                if (this._groupCache) this._groupCache.del(update.id)
             }
         })
 
@@ -170,9 +168,6 @@ class WAStore {
                         break
                 }
             }
-
-            /** Invalidate groupCache agar handler ambil data fresh **/
-            if (this._groupCache) this._groupCache.del(id)
 
             logger.info(`Store group ${id}: ${action} → [${participants.join(', ')}]`)
         })

@@ -74,7 +74,7 @@ export const handleMessage = async (sock, m) => {
                 try {
                     const rawParticipant = msg.key.participant
                     const botJidNorm = sock.user?.id ? sock.user.id.split(':')[0] + '@s.whatsapp.net' : null
-                    const meta = sock._groupCache?.get(msg.key.remoteJid) || await sock.groupMetadata(msg.key.remoteJid)
+                    const meta = await sock.groupMetadata(msg.key.remoteJid)
                     const isBotAdminNow = botJidNorm && meta?.participants?.some(p => normalizeJid(p.id) === botJidNorm && p.admin)
                     if (isBotAdminNow && rawParticipant) {
                         await sock.groupParticipantsUpdate(msg.key.remoteJid, [rawParticipant], 'remove')
@@ -187,6 +187,18 @@ export const handleMessage = async (sock, m) => {
         const botJid = sock.user?.id ? sock.user.id.split(':')[0] + '@s.whatsapp.net' : null
         if (!botJid) return
 
+        const toUserKey = (jid) => String(normalizeJid(jid) || jid || '').split('@')[0].split(':')[0]
+        const isAdminInMeta = (meta, targetJid) => {
+            const target = toUserKey(targetJid)
+            if (!target || !Array.isArray(meta?.participants)) return false
+            return meta.participants.some((p) => {
+                if (!p?.admin) return false
+                const idKey = toUserKey(p.id)
+                const phoneKey = toUserKey(p.phoneNumber)
+                return idKey === target || phoneKey === target
+            })
+        }
+
         const getGroupMetadata = async (jid) => {
             try {
                 const meta = await sock.groupMetadata(jid)
@@ -216,20 +228,8 @@ export const handleMessage = async (sock, m) => {
         if (isGroup) {
             groupMetadata = await getGroupMetadata(msg.key.remoteJid)
             if (groupMetadata) {
-                /** Normalize participant IDs: @lid → @s.whatsapp.net sebelum dibandingkan.
-                 *  Fallback ke p.phoneNumber jika normalizeJid masih return @lid
-                 *  (terjadi saat LID mapping belum tersimpan di file auth state). **/
-                const admins = groupMetadata.participants
-                    .filter(p => p.admin)
-                    .map(p => {
-                        const normalized = normalizeJid(p.id)
-                        if (normalized && !normalized.endsWith('@lid')) return normalized
-                        if (p.phoneNumber) return normalizeJid(p.phoneNumber) || p.phoneNumber
-                        return normalized
-                    })
-                    .filter(Boolean)
-                isAdmin = admins.includes(sender)
-                isBotAdmin = admins.includes(botJid)
+                isAdmin = isAdminInMeta(groupMetadata, sender)
+                isBotAdmin = isAdminInMeta(groupMetadata, botJid)
             }
 
             // Persist group info for future group features.
@@ -409,6 +409,15 @@ export const handleMessage = async (sock, m) => {
         if (command) {
             /** isOwner sudah dideklarasi di atas **/
 
+            if (isGroup && (command.adminOnly || command.botAdmin)) {
+                const freshMeta = await getGroupMetadata(msg.key.remoteJid)
+                if (freshMeta) {
+                    groupMetadata = freshMeta
+                    isAdmin = isAdminInMeta(freshMeta, sender)
+                    isBotAdmin = isAdminInMeta(freshMeta, botJid)
+                }
+            }
+
             /** If in self mode, only allow owner **/
             if (!sock.public && !isOwner) return
 
@@ -433,10 +442,10 @@ export const handleMessage = async (sock, m) => {
                 }, { quoted: msg })
             }
 
-            /** Sender must be group admin or owner guard **/
-            if (command.adminOnly && !isAdmin && !isOwner) {
+            /** Sender must be group admin guard **/
+            if (command.adminOnly && !isAdmin) {
                 return sock.sendMessage(msg.key.remoteJid, {
-                    text: '❌ Hanya admin grup atau owner yang bisa menggunakan command ini.'
+                    text: '❌ Hanya admin grup yang bisa menggunakan command ini.'
                 }, { quoted: msg })
             }
 
