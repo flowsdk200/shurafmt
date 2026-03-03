@@ -12,7 +12,7 @@ export default {
         const phone = text?.replace(/[^0-9]/g, '')
         if (!phone || phone.length < 7) {
             return sock.sendMessage(jid, {
-                text: `❌ Masukkan nomor HP yang ingin ditambahkan.\n\nContoh:\n${prefix + command} 6282136015864`
+                text: `❌ Masukkan nomor yang ingin ditambahkan.`
             }, { quoted: msg })
         }
 
@@ -32,10 +32,12 @@ export default {
 
             useLimit()
             await react('✅')
+            /*
             await sock.sendMessage(jid, {
                 text: `✅ @${phone} berhasil ditambahkan ke grup.`,
                 mentions: [targetJid]
             }, { quoted: msg })
+            */
         } catch (err) {
             await react('❌')
             await sock.sendMessage(jid, { text: `❌ Gagal menambahkan: ${err.message}` }, { quoted: msg })

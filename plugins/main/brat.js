@@ -11,7 +11,7 @@ export default {
 
         if (!q) {
             return sock.sendMessage(jid, {
-                text: `Contoh penggunaan:\n- ${prefix + command} halo bang`
+                text: `Contoh penggunaan\n${prefix + command} halo bang`
             }, { quoted: msg })
         }
 
@@ -29,7 +29,7 @@ export default {
         } catch (err) {
             await react('❌')
             await sock.sendMessage(jid, {
-                text: `❌ Gagal membuat brat sticker: ${err?.message || 'unknown error'}`
+                text: `❌ Gagal membuat brat sticker: ${err?.message}`
             }, { quoted: msg })
         }
     }

@@ -1,20 +1,12 @@
 import fs from 'fs'
 
-const getThumbBuffer = () => {
-    try {
-        return fs.readFileSync(new URL('./assets/thumb.jpg', import.meta.url))
-    } catch {
-        return Buffer.alloc(0)
-    }
-}
-
 const config = {
     botName: 'shurafmt',
     botVersion: '1.0.0',
     ownerNumbers: ['6285226344606', '6282136015864'],
     prefixes: ['!', '.', '/'],
     sessionName: 'session',
-    thumb: getThumbBuffer(),
+    thumb: fs.readFileSync('./assets/thumb.jpg'),
     logChats: false,
     autoRead: true,
     selfMode: false,
@@ -26,6 +18,10 @@ const config = {
         owner: 2000,
         premium: 1000,
         free: 50
+    },
+    groupDefaults: {
+        welcome: true,
+        goodbye: true
     }
 }
 

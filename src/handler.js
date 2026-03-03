@@ -321,7 +321,7 @@ export const handleMessage = async (sock, m) => {
             }
         }
 
-        const LIMIT_MSG = `❌ Limit harian kamu sudah habis.\nLimit akan direset setiap jam 00.00 WIB.\n\nLimit harian:\n▦ Free: ${config.limits.free}\n▦ Premium: ${config.limits.premium.toLocaleString('id-ID')}\n▦ Owner: ${config.limits.owner.toLocaleString('id-ID')}`
+        const LIMIT_MSG = `❌ Limit harian kamu sudah habis. limit akan direset setiap jam 00.00 WIB.`
 
         if (!body) return
 

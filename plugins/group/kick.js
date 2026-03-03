@@ -14,18 +14,18 @@ export default {
         const targetJid = getTargetJid(msg, text)
         if (!targetJid) {
             return sock.sendMessage(jid, {
-                text: `❌ Tentukan target dengan @mention, reply pesan mereka, atau ketik nomornya.\n\nContoh:\n${prefix + command} @user`
+                text: `❌ @mention, reply pesan target, atau ketik nomornya`
             }, { quoted: msg })
         }
 
         /** Jangan kick diri sendiri **/
         if (targetJid === sender) {
-            return sock.sendMessage(jid, { text: '❌ Tidak bisa mengeluarkan diri sendiri.' }, { quoted: msg })
+            return sock.sendMessage(jid, { text: '🤬 Gak bisa kick diri sendiri.' }, { quoted: msg })
         }
 
         /** Jangan kick bot **/
         if (targetJid === botJid) {
-            return sock.sendMessage(jid, { text: '❌ Tidak bisa mengeluarkan bot itu sendiri.' }, { quoted: msg })
+            return sock.sendMessage(jid, { text: '🤬 Gak bisa kick bot.' }, { quoted: msg })
         }
 
         /** Jangan kick sesama admin (kecuali owner bot) **/

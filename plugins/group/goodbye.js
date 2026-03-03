@@ -4,11 +4,12 @@ export default {
     description: 'Toggle goodbye message grup (on/off/status)',
     groupOnly: true,
     adminOnly: true,
-    execute: async ({ sock, msg, args, groupsDb, useLimit }) => {
+    execute: async ({ sock, msg, args, groupsDb, config, useLimit }) => {
         const jid = msg.key.remoteJid
         const input = (args[0] || '').toLowerCase()
 
-        const current = groupsDb.getSetting(jid, 'goodbye', true) === true
+        const defaultGoodbye = config?.groupDefaults?.goodbye ?? true
+        const current = groupsDb.getSetting(jid, 'goodbye', defaultGoodbye) === true
 
         if (!input || ['status', 'cek', 'check'].includes(input)) {
             useLimit()

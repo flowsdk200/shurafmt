@@ -13,7 +13,7 @@ const MENU = {
 */
 
 const MENU = {
-    General: ['ai', 'ping', 'play', 'rvo', 'sticker', 'brat', 'hd', 'mediafire', 'idch', 'script', 'tocjs', 'toesm', 'toptv', 'tovn', 'toaudio', 'tiktok'],
+    General: ['ai', 'ping', 'play', 'rvo', 'sticker', 'brat', 'get', 'hd', 'mediafire', 'idch', 'script', 'tocjs', 'toesm', 'toptv', 'tovn', 'toaudio', 'tourl', 'tiktok', 'owner', 'ytmp3', 'ytmp4'],
 }
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -86,7 +86,7 @@ export default {
             await sock.sendMessage(jid, {
                 document: ppBuffer,
                 mimetype: 'image/png',
-                fileName: String(config.botName || 'menu'),
+                fileName: String(config.botName),
                 fileLength: 999999,
                 pageCount: 0,
                 jpegThumbnail: ppBuffer,

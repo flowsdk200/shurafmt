@@ -14,7 +14,7 @@ export default {
         const targetJid = getTargetJid(msg, text)
         if (!targetJid) {
             return sock.sendMessage(jid, {
-                text: `❌ Tentukan target dengan @mention, reply pesan mereka, atau ketik nomornya.\n\nContoh:\n${prefix + command} @user`
+                text: `❌ @mention, reply pesan target, atau ketik nomornya.`
             }, { quoted: msg })
         }
 
@@ -22,7 +22,7 @@ export default {
         if (groupMetadata) {
             const targetParticipant = groupMetadata.participants.find(p => normalizeJid(p.id) === targetJid)
             if (targetParticipant?.admin) {
-                return sock.sendMessage(jid, { text: '❌ Pengguna ini sudah menjadi admin.' }, { quoted: msg })
+                return sock.sendMessage(jid, { text: '❌ pengguna ini sudah menjadi admin.' }, { quoted: msg })
             }
         }
 

@@ -63,7 +63,7 @@ async function connectToWhatsApp() {
         browser: Browsers.macOS("Chrome"),
         getMessage: async (key) => {
             const msg = store.getMessage(key)
-            return msg?.message || { conversation: 'p' }
+            return msg?.message
         },
         cachedGroupMetadata: async () => undefined
     }
@@ -150,8 +150,10 @@ async function connectToWhatsApp() {
                 .map((x) => normalizeJid(x.id) || x.id)
                 .filter(Boolean))
 
-            const welcomeOn = groupsDb.getSetting(id, 'welcome', true) === true
-            const goodbyeOn = groupsDb.getSetting(id, 'goodbye', true) === true
+            const defaultWelcome = config.groupDefaults?.welcome ?? true
+            const defaultGoodbye = config.groupDefaults?.goodbye ?? true
+            const welcomeOn = groupsDb.getSetting(id, 'welcome', defaultWelcome) === true
+            const goodbyeOn = groupsDb.getSetting(id, 'goodbye', defaultGoodbye) === true
 
             for (const p of participantList) {
                 const normalized = normalizeJid(p) || p

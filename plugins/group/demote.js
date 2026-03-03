@@ -14,7 +14,7 @@ export default {
         const targetJid = getTargetJid(msg, text)
         if (!targetJid) {
             return sock.sendMessage(jid, {
-                text: `❌ Tentukan target dengan @mention, reply pesan mereka, atau ketik nomornya.\n\nContoh:\n${prefix + command} @user`
+                text: `❌ @mention, reply pesan target, atau ketik nomornya.`
             }, { quoted: msg })
         }
 

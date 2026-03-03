@@ -4,11 +4,12 @@ export default {
     description: 'Toggle welcome message grup (on/off/status)',
     groupOnly: true,
     adminOnly: true,
-    execute: async ({ sock, msg, args, groupsDb, useLimit }) => {
+    execute: async ({ sock, msg, args, groupsDb, config, useLimit }) => {
         const jid = msg.key.remoteJid
         const input = (args[0] || '').toLowerCase()
 
-        const current = groupsDb.getSetting(jid, 'welcome', true) === true
+        const defaultWelcome = config?.groupDefaults?.welcome ?? true
+        const current = groupsDb.getSetting(jid, 'welcome', defaultWelcome) === true
 
         if (!input || ['status', 'cek', 'check'].includes(input)) {
             useLimit()

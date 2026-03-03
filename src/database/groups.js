@@ -1,6 +1,7 @@
 import logger from '../utils/logger.js'
 import { normalizeJid } from '../utils/jid.js'
 import { getCollection } from './mongo.js'
+import config from '../../config.js'
 
 class GroupDatabase {
     constructor() {
@@ -82,8 +83,8 @@ class GroupDatabase {
                 creation: null,
                 inviteCode: '',
                 settings: {
-                    welcome: true,
-                    goodbye: true,
+                    welcome: config.groupDefaults?.welcome ?? true,
+                    goodbye: config.groupDefaults?.goodbye ?? true,
                 },
                 enabled: true,
                 muted: false
