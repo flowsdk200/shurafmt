@@ -55,7 +55,7 @@ export default {
 
         if (!text) {
             return sock.sendMessage(jid, {
-                text: `❌ Masukkan link mediafire.\n\nContoh:\n${prefix + command} https://www.mediafire.com/file/6d6ve1st4p1c7m5/Busybox-NDK_v1.36.1.zip/file`
+                text: `Contoh penggunaan:\n- ${prefix + command} https://www.mediafire.com/file/6d6ve1st4p1c7m5/Busybox-NDK_v1.36.1.zip/file`
             }, { quoted: msg })
         }
 
@@ -63,7 +63,7 @@ export default {
 
         if (!rawUrl || !/mediafire\.com|mfi\.re/i.test(rawUrl)) {
             return sock.sendMessage(jid, {
-                text: '❌ Link tidak valid. gunakan link mediafire.'
+                text: '❌ Link tidak valid. pastikan link dari mediafire.'
             }, { quoted: msg })
         }
 
@@ -120,7 +120,7 @@ export default {
         } catch (err) {
             await react('❌')
             return sock.sendMessage(jid, {
-                text: `❌ Terjadi kesalahan: ${err.message}`
+                text: `❌ Error: ${err.message}`
             }, { quoted: msg })
         }
     }

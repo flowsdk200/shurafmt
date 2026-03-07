@@ -57,7 +57,7 @@ export default {
             }, { quoted: msg })
         } catch (err) {
             await react('❌')
-            await sock.sendMessage(jid, { text: `❌ Gagal mengeluarkan: ${err.message}` }, { quoted: msg })
+            await sock.sendMessage(jid, { text: `❌ Error: ${err.message}` }, { quoted: msg })
         }
     }
 }

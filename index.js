@@ -12,6 +12,8 @@ import { handleMessage, loadPlugins } from './src/handler.js'
 import store from './src/store.js'
 import usersDb from './src/database/users.js'
 import groupsDb from './src/database/groups.js'
+import confessDb from './src/database/confess.js'
+import settingsDb from './src/database/settings.js'
 import { closeMongo } from './src/database/mongo.js'
 import { sendGreetingMessage } from './src/utils/greetings.js'
 import { normalizeJid } from './src/utils/jid.js'
@@ -139,8 +141,22 @@ async function connectToWhatsApp() {
             if (!id?.endsWith('@g.us')) return
             const rawList = Array.isArray(participants) ? participants : [participants]
             const participantList = rawList
-                .map((p) => typeof p === 'string' ? p : (p?.id || p?.jid || p?.participant || ''))
-                .filter(Boolean)
+                .map((p) => {
+                    if (typeof p === 'string') {
+                        return {
+                            raw: p,
+                            id: p,
+                            alt: ''
+                        }
+                    }
+
+                    return {
+                        raw: p,
+                        id: p?.id || p?.jid || p?.participant || '',
+                        alt: p?.participantAlt || p?.phoneNumber || ''
+                    }
+                })
+                .filter((p) => p.id || p.alt)
             if (!participantList.length) return
 
             if (action === 'promote' || action === 'demote') return
@@ -155,9 +171,15 @@ async function connectToWhatsApp() {
             const welcomeOn = groupsDb.getSetting(id, 'welcome', defaultWelcome) === true
             const goodbyeOn = groupsDb.getSetting(id, 'goodbye', defaultGoodbye) === true
 
-            for (const p of participantList) {
-                const normalized = normalizeJid(p) || p
+            for (const entry of participantList) {
+                const rawId = entry.id || ''
+                const altId = entry.alt || ''
+                const normalized = normalizeJid(altId) || normalizeJid(rawId) || altId || rawId
                 const isJoin = action === 'add' ? true : action === 'remove' || action === 'leave' ? false : currentMembers.has(normalized)
+
+                if (isJoin === false) {
+                    groupsDb.clearWarn(id, normalized)
+                }
 
                 if ((isJoin && !welcomeOn) || (!isJoin && !goodbyeOn)) continue
 
@@ -165,13 +187,13 @@ async function connectToWhatsApp() {
                     sock,
                     config,
                     groupId: id,
-                    participant: p,
+                    participant: altId || rawId,
                     groupMetadata: meta,
                     isWelcome: isJoin === true
                 })
             }
         } catch (err) {
-            logger.warn(`Welcome/Goodbye handler failed: ${err.message}`)
+            logger.warn(`Welcome/goodbye handler failed: ${err.message}`)
         }
     })
 
@@ -188,7 +210,10 @@ async function connectToWhatsApp() {
                 }
             }
         }
-        await handleMessage(sock, m)
+        void handleMessage(sock, m).catch((err) => {
+            logger.error(`Handle message failed: ${err.message}`)
+            notifyOwnersError('message-handler', err, `remoteJid=${m?.messages?.[0]?.key?.remoteJid || '-'}`)
+        })
     })
 }
 
@@ -221,6 +246,8 @@ process.on('SIGINT', () => { shutdown('SIGINT') })
 async function start() {
     await usersDb.init()
     await groupsDb.init()
+    await confessDb.init()
+    await settingsDb.init()
     await loadPlugins()
     await connectToWhatsApp()
 }

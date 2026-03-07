@@ -11,7 +11,7 @@ export default {
         const targetJid = getTargetJid(msg, text)
         if (!targetJid) {
             return sock.sendMessage(jid, {
-                text: `❌ Format: ${prefix + command} @user/nomor/reply`
+                text: `Cara penggunaan:\n- ${prefix + command} @user/nomor/reply\n\nContoh penggunaan:\n ${prefix + command} 6285226344606`
             }, { quoted: msg })
         }
 
@@ -19,7 +19,7 @@ export default {
 
         if (config.ownerNumbers.includes(targetNum)) {
             return sock.sendMessage(jid, {
-                text: `❌ @${targetNum} adalah owner utama dari config, tidak bisa dihapus.`,
+                text: `❌ @${targetNum} adalah owner utama, tidak bisa dihapus.`,
                 mentions: [targetJid]
             }, { quoted: msg })
         }

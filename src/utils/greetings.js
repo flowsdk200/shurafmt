@@ -1,5 +1,6 @@
 import { createRequire } from 'module'
 import { normalizeJid } from './jid.js'
+import groupsDb from '../database/groups.js'
 
 const require = createRequire(import.meta.url)
 const { Jimp } = require('jimp')
@@ -30,6 +31,18 @@ export const buildGoodbyeMessage = ({ userJid, groupSubject, memberInfo }) => {
         `• Time: ${formatJoinedAt()}\n` +
         `• Members: ${memberInfo.previous} ➠ ${memberInfo.current} (-1)`
     )
+}
+
+const renderGreetingTemplate = ({ template, userJid, groupSubject, memberInfo }) => {
+    const userTag = `@${String(userJid || '').split('@')[0]}`
+    return String(template || '')
+        .replaceAll('{user}', userTag)
+        .replaceAll('{tag}', userTag)
+        .replaceAll('{group}', groupSubject || '-')
+        .replaceAll('{time}', formatJoinedAt())
+        .replaceAll('{members}', String(memberInfo.current ?? '-'))
+        .replaceAll('{before}', String(memberInfo.previous ?? '-'))
+        .replaceAll('{after}', String(memberInfo.current ?? '-'))
 }
 
 const resizeTo200 = async (buf) => {
@@ -92,13 +105,18 @@ export const sendGreetingMessage = async ({
             : '-'
     }
 
-    const text = isWelcome
-        ? buildWelcomeMessage({ userJid, groupSubject: groupMetadata?.subject || groupId, memberInfo })
-        : buildGoodbyeMessage({ userJid, groupSubject: groupMetadata?.subject || groupId, memberInfo })
+    const groupSubject = groupMetadata?.subject || groupId
+    const customKey = isWelcome ? 'welcomeText' : 'goodbyeText'
+    const customTemplate = groupsDb.getSetting(groupId, customKey, '')
+    const text = customTemplate
+        ? renderGreetingTemplate({ template: customTemplate, userJid, groupSubject, memberInfo })
+        : isWelcome
+            ? buildWelcomeMessage({ userJid, groupSubject, memberInfo })
+            : buildGoodbyeMessage({ userJid, groupSubject, memberInfo })
 
     const mentions = userJid.endsWith('@s.whatsapp.net') ? [userJid] : []
     const profilePicture = await getProfilePictureBuffer(sock, userJid, config.thumb)
-    const fileName = isWelcome ? '👋 WELCOME' : '👋 GOODBYE'
+    const fileName = isWelcome ? '👋 Welcome' : '👋 Goodbye'
 
     await sock.sendMessage(groupId, {
         document: profilePicture,

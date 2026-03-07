@@ -2,7 +2,7 @@ import { translateStatus } from '../../src/utils/group.js'
 
 export default {
     name: 'add',
-    aliases: ['tambah'],
+    aliases: [],
     description: 'Tambahkan member ke grup via nomor HP',
     groupOnly: true,
     botAdmin: true,
@@ -12,7 +12,7 @@ export default {
         const phone = text?.replace(/[^0-9]/g, '')
         if (!phone || phone.length < 7) {
             return sock.sendMessage(jid, {
-                text: `❌ Masukkan nomor yang ingin ditambahkan.`
+                text: `❌ Masukkan nomor yang ingin ditambahkan.\n\nContoh:\n- ${prefix + command} 6285226344606`
             }, { quoted: msg })
         }
 
@@ -40,7 +40,7 @@ export default {
             */
         } catch (err) {
             await react('❌')
-            await sock.sendMessage(jid, { text: `❌ Gagal menambahkan: ${err.message}` }, { quoted: msg })
+            await sock.sendMessage(jid, { text: `❌ Error: ${err.message}` }, { quoted: msg })
         }
     }
 }

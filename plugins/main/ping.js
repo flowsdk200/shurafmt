@@ -69,7 +69,7 @@ const getDiskUsage = () => {
 
 export default {
     name: "ping",
-    aliases: ["p", "status"],
+    aliases: ["status"],
     description: "Server status report",
     execute: async ({ sock, msg }) => {
         const start = getCpuUsage()

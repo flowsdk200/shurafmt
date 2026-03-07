@@ -3,17 +3,17 @@ import os from 'os'
 const require = createRequire(import.meta.url)
 const { Jimp } = require('jimp')
 
-/*
-const MENU = {
-    General: ['ai', 'ping', 'play', 'rvo', 'sticker', 'hd', 'idch', 'script', 'tocjs', 'toesm', 'toptv', 'tovn', 'toaudio'],
-    Download: ['mediafire', 'tiktok', 'tiktoksearch'],
-    Group: ['add', 'antibot', 'antispam', 'close', 'demote', 'goodbye', 'kick', 'open', 'promote', 'welcome'],
-    Owner: ['addlimit', 'addowner', 'addprem', 'autoread', 'ceklimit', 'dellimit', 'delowner', 'delprem', 'listgc', 'listowner', 'listprem', 'public', 'self'],
-}
-*/
 
-const MENU = {
-    General: ['ai', 'ping', 'play', 'rvo', 'sticker', 'brat', 'get', 'hd', 'mediafire', 'idch', 'script', 'tocjs', 'toesm', 'toptv', 'tovn', 'toaudio', 'tourl', 'tiktok', 'owner', 'ytmp3', 'ytmp4'],
+export const MENU = {
+    General: ['ai', 'confess', 'glm', 'gemini', 'ping', 'script', 'owner', 'kbbi'],
+    Download: ['aptoidedl', 'apptekadl', 'bilibilidl', 'capcutdl', 'facebook', 'fdroiddl', 'gdrive', 'gitclone', 'igreel', 'igpost', 'igstory', 'instagram', 'mediafire', 'pindl', 'play', 'redditdl', 'sfiledl', 'softmanydl', 'spotify', 'tiktok', 'tumblr', 'twitter', 'videy', 'ytmp3', 'ytmp4'],
+    Search: ['apkcombo', 'apkmirror', 'apkmody', 'apkpure', 'appstore', 'appteka', 'aptoide', 'bilibili', 'bing', 'bingimg', 'bluearchive', 'brave', 'cookpad', 'fdroid', 'github', 'google', 'gsmarena', 'komikindo', 'linkedin', 'mangatoon', 'mangatoonread', 'npm', 'pexels', 'pin', 'pixiv', 'playstore', 'sfile', 'softmany', 'soundcloud', 'spsearch', 'tokopedia', 'ttsearch', 'unsplash', 'wattpad', 'wattpadread', 'webtoons', 'webtoonread', 'wikimedia', 'wikipedia', 'yahoo', 'ytsearch'],
+    Tools: ['brat', 'cekcuaca', 'emojimix', 'gempa', 'get', 'getpp', 'hd', 'hdvideo', 'idch', 'iqc', 'jadwalsholat', 'ocr', 'removebg', 'rvo', 'shorturl', 'smeme', 'sprl', 'ssweb', 'sticker', 'swm', 'tgsticker', 'tinycc', 'totalfitur', 'tourl', 'translate'],
+    Group: ['add', 'addwarn', 'afk', 'antibot', 'antilinkch', 'antilinkgc', 'antiluar', 'antispam', 'close', 'delppgc', 'delwarn', 'demote', 'goodbye', 'hidetag', 'kick', 'listwarn', 'open', 'promote', 'setclose', 'setgoodbye', 'setopen', 'setppgc', 'setwelcome', 'tagall', 'welcome'],
+    Owner: ['addban', 'addlimit', 'addowner', 'addprem', 'addrespon', 'autoread', 'ceklimit', 'delban', 'dellimit', 'delowner', 'delppbot', 'delprem', 'delrespon', 'listban', 'listgc', 'listowner', 'listprem', 'listrespon', 'onlygrup', 'onlyowner', 'onlypc', 'onlyprem', 'public', 'resetdb', 'self', 'setppbot'],
+    News: ['abc', 'aljazeera', 'antara', 'apnews', 'arstechnica', 'bbc', 'bbcworld', 'beritasatu', 'bisnis', 'bola', 'cbc', 'cna', 'cnbc', 'cnbcid', 'cnn', 'cnnid', 'cnet', 'detik', 'dw', 'engadget', 'euronews', 'fajar', 'fortune', 'foxnews', 'france24', 'globalnews', 'guardian', 'hackernews', 'harianjogja', 'idntimes', 'independent', 'indozone', 'inews', 'jawapos', 'jogja', 'jpn', 'katadata', 'kompas', 'kontan', 'kumparan', 'liputan6', 'marketwatch', 'medcom', 'merdeka', 'nbcnews', 'npr', 'nytimes', 'okezone', 'pbs', 'republika', 'rfi', 'rmol', 'rt', 'scmp', 'slashdot', 'skynews', 'solnews', 'sindonews', 'suara', 'techcrunch', 'tempo', 'thehill', 'thetimes', 'theverge', 'tribun', 'tvone', 'validnews', 'vice', 'viva', 'vivagoal', 'voa', 'washpost', 'zdnet'],
+    Convert: ['bass', 'blown', 'deep', 'earrape', 'fast', 'fat', 'nightcore', 'reverse', 'robot', 'slow', 'smooth', 'squirrel', 'toaudio', 'tocjs', 'toesm', 'toimg', 'toptv', 'tovn', 'tovideo'],
+    Store: ['bagi', 'diskon', 'done', 'kali', 'kurang', 'persen', 'proses', 'tambah', 'total'],
 }
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -26,8 +26,17 @@ const resizePP = async (buf, size = 200) => {
 
 const styles = (text) => `\`\`\`${text}\`\`\``
 
-const getPP = async (thumb) => {
+const getPP = async (sock, sender, thumb) => {
     try {
+        const ppUrl = await sock.profilePictureUrl(sender, 'image').catch(() => '')
+        if (ppUrl) {
+            const response = await fetch(ppUrl)
+            if (response.ok) {
+                const arrayBuffer = await response.arrayBuffer()
+                const buffer = Buffer.from(arrayBuffer)
+                return await resizePP(buffer, 200)
+            }
+        }
         return await resizePP(thumb, 200)
     } catch {
         return thumb
@@ -54,39 +63,39 @@ export default {
             const p = config.prefixes[0]
             const owner = config.ownerNumbers[0] || '?'
             const ownerJid = config.ownerNumbers[0] ? `${config.ownerNumbers[0]}@s.whatsapp.net` : null
-            const status = isOwner ? 'owner' : usersDb.isPremium(sender) ? 'premium' : 'free'
+            const userIsOwner = isOwner || usersDb.isOwner(sender)
+            const userIsPremium = userIsOwner ? false : (isPremium || usersDb.isPremium(sender))
+            const status = userIsOwner ? 'owner' : userIsPremium ? 'premium' : 'free'
             const senderNum = sender.split('@')[0]
             const limitLeft = usersDb.getLimit(sender)
-            const limitMax = usersDb.getMaxLimit(isOwner, isPremium)
+            const limitMax = usersDb.getMaxLimit(userIsOwner, userIsPremium)
             const totalUsers = usersDb.count()
 
-            const ppBuffer = await getPP(config.thumb)
+            const ppBuffer = await getPP(sock, sender, config.thumb)
 
             const menuText = Object.entries(MENU)
-                .map(([kategori, cmds]) => `${kategori} (${cmds.length})\n${cmds.map((c) => `× ${p}${c}`).join('\n')}`)
+                .map(([kategori, cmds]) => `\`\`\`${kategori} (${cmds.length})\`\`\`\n\`\`\`${cmds.map((c) => `❖ ${p}${c}`).join('\n')}\`\`\``)
                 .join('\n\n')
 
             const caption =
-                styles(
-                    `Users\n` +
-                    `× Name: ${String(pushName || 'user')}\n` +
-                    `× ID: @${senderNum}\n` +
-                    `× Status: ${status}\n` +
-                    `× Limit: ${limitLeft}/${limitMax}\n\n` +
-                    `System\n` +
-                    `× Owner: @${owner}\n` +
-                    `× Mode: ${sock.public ? 'public' : 'self'}\n` +
-                        `× Users: ${totalUsers}\n` +
-                        `× Uptime: ${getUptime(os.uptime())}\n\n` +
+                    `\`\`\`Users\`\`\`\n` +
+                    `\`\`\`❖ Name: ${String(pushName || 'user')}\n` +
+                    `❖ ID: @${senderNum}\n` +
+                    `❖ Status: ${status}\n` +
+                    `❖ Limit: ${limitLeft}/${limitMax}\`\`\`\n\n` +
+                    `\`\`\`System\`\`\`\n` +
+                    `\`\`\`❖ Owner: @${owner}\n` +
+                    `❖ Mode: ${sock.public ? 'public' : 'self'}\n` +
+                        `❖ Users: ${totalUsers}\n` +
+                        `❖ Uptime: ${getUptime(os.uptime())}\`\`\`\n\n\n` +
                         `${menuText}`
-                )
 
             const mentionedJid = ownerJid ? [sender, ownerJid] : [sender]
-            await sleep(3000)
+            await sleep(5000)
             await sock.sendMessage(jid, {
                 document: ppBuffer,
                 mimetype: 'image/png',
-                fileName: String(config.botName),
+                fileName: `${pushName}`,
                 fileLength: 999999,
                 pageCount: 0,
                 jpegThumbnail: ppBuffer,
@@ -96,8 +105,16 @@ export default {
                     forwardingScore: 999,
                     isForwarded: true,
                     forwardedNewsletterMessageInfo: {
-                        newsletterName: `${getUptime(os.uptime())}`,
+                        newsletterName: `${config.botName} wabot - v1.0.0`,
                         newsletterJid: config.channelJid,
+                    },
+                    externalAdReply: {
+                        title: `${config.botName} wabot - v1.0.0`,
+                        body: `system uptime: ${getUptime(os.uptime())}`,
+                        thumbnail: config.thumb,
+                        sourceUrl: config.channelLink,
+                        mediaType: 1,
+                        renderLargerThumbnail: true,
                     },
                 },
                 viewOnce: true,

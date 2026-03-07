@@ -78,7 +78,7 @@ export default {
 
         if (!parsed) {
             return sock.sendMessage(jid, {
-                text: `Gunakan: ${prefix + command} <link channel>`
+                text: `Contoh penggunaan:\n- ${prefix + command} https://whatsapp.com/channel/0029Vb8IWc3FSAsy4xaX991n`
             }, { quoted: msg })
         }
 

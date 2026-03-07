@@ -32,7 +32,7 @@ class GroupDatabase {
         }
 
         this._initialized = true
-        logger.ready(`[GroupDB] Loaded ${docs.length} groups from MongoDB${changed ? ` (normalized ${changed})` : ''}`)
+        logger.ready(`Loaded ${docs.length} groups from MongoDB${changed ? ` (normalized ${changed})` : ''}`)
     }
 
     _toWibDateTime(input = new Date()) {
@@ -51,6 +51,21 @@ class GroupDatabase {
             hour12: false,
             timeZone: 'Asia/Jakarta'
         })
+    }
+
+    _toWarnDateTime(input = new Date()) {
+        const d = input instanceof Date ? input : new Date(input)
+        const date = Number.isNaN(d.getTime()) ? new Date() : d
+        const day = String(date.getDate()).padStart(2, '0')
+        const month = date.toLocaleString('id-ID', { month: 'short', timeZone: 'Asia/Jakarta' })
+        const year = date.toLocaleString('id-ID', { year: 'numeric', timeZone: 'Asia/Jakarta' })
+        const time = date.toLocaleString('id-ID', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+            timeZone: 'Asia/Jakarta'
+        }).replace(':', '.')
+        return `${day} ${month} ${year}, ${time}`
     }
 
     _persistGroup(jid) {
@@ -113,6 +128,109 @@ class GroupDatabase {
         const group = this.getGroup(jid)
         if (!group.settings || typeof group.settings !== 'object') return defaultValue
         return group.settings[key] ?? defaultValue
+    }
+
+    _ensureWarnUsers(group) {
+        if (!group.settings || typeof group.settings !== 'object') group.settings = {}
+        if (!group.settings.warnUsers || typeof group.settings.warnUsers !== 'object') {
+            group.settings.warnUsers = {}
+        }
+        return group.settings.warnUsers
+    }
+
+    _ensureStoreOrders(group) {
+        if (!group.settings || typeof group.settings !== 'object') group.settings = {}
+        if (!group.settings.storeOrders || typeof group.settings.storeOrders !== 'object') {
+            group.settings.storeOrders = {}
+        }
+        return group.settings.storeOrders
+    }
+
+    addWarn(jid, userJid) {
+        const group = this.getGroup(jid)
+        const warnUsers = this._ensureWarnUsers(group)
+        const normalized = normalizeJid(userJid) || userJid
+        const current = warnUsers[normalized] && typeof warnUsers[normalized] === 'object'
+            ? warnUsers[normalized]
+            : { count: 0, updatedAt: '' }
+
+        current.count = Math.min(3, Number(current.count || 0) + 1)
+        current.updatedAt = this._toWarnDateTime()
+
+        warnUsers[normalized] = current
+        this._persistGroup(jid)
+        return { jid: normalized, ...current }
+    }
+
+    getWarn(jid, userJid) {
+        const group = this.getGroup(jid)
+        const warnUsers = this._ensureWarnUsers(group)
+        const normalized = normalizeJid(userJid) || userJid
+        const current = warnUsers[normalized]
+        if (!current || typeof current !== 'object') {
+            return { jid: normalized, count: 0, updatedAt: '' }
+        }
+        return {
+            jid: normalized,
+            count: Number(current.count || 0),
+            updatedAt: current.updatedAt || ''
+        }
+    }
+
+    clearWarn(jid, userJid) {
+        const group = this.getGroup(jid)
+        const warnUsers = this._ensureWarnUsers(group)
+        const normalized = normalizeJid(userJid) || userJid
+        const current = warnUsers[normalized]
+        if (!current) return false
+        delete warnUsers[normalized]
+        this._persistGroup(jid)
+        return true
+    }
+
+    listWarns(jid) {
+        const group = this.getGroup(jid)
+        const warnUsers = this._ensureWarnUsers(group)
+        return Object.entries(warnUsers)
+            .map(([userJid, data]) => ({
+                jid: userJid,
+                count: Number(data?.count || 0),
+                updatedAt: data?.updatedAt || ''
+            }))
+            .filter((item) => item.count > 0)
+            .sort((a, b) => b.count - a.count || a.jid.localeCompare(b.jid))
+    }
+
+    setStoreOrder(jid, userJid, product) {
+        const group = this.getGroup(jid)
+        const storeOrders = this._ensureStoreOrders(group)
+        const normalized = normalizeJid(userJid) || userJid
+        storeOrders[normalized] = {
+            product: String(product || '').trim(),
+            createdAt: new Date().toISOString()
+        }
+        this._persistGroup(jid)
+        return { jid: normalized, ...storeOrders[normalized] }
+    }
+
+    getStoreOrder(jid, userJid) {
+        const group = this.getGroup(jid)
+        const storeOrders = this._ensureStoreOrders(group)
+        const normalized = normalizeJid(userJid) || userJid
+        const order = storeOrders[normalized]
+        if (!order || typeof order !== 'object') return null
+        return { jid: normalized, ...order }
+    }
+
+    clearStoreOrder(jid, userJid) {
+        const group = this.getGroup(jid)
+        const storeOrders = this._ensureStoreOrders(group)
+        const normalized = normalizeJid(userJid) || userJid
+        const current = storeOrders[normalized]
+        if (!current) return false
+        delete storeOrders[normalized]
+        this._persistGroup(jid)
+        return true
     }
 
     muteUser(jid, userJid, durationMs = 24 * 60 * 60 * 1000) {

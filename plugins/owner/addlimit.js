@@ -11,7 +11,7 @@ export default {
         const match = text.match(/(\d+)\s*$/)
         if (!match) {
             return sock.sendMessage(jid, {
-                text: `❌ Format: ${prefix + command} @user/nomor/reply <jumlah>\n\nContoh: ${prefix + command} @user 50`
+                text: `❌ Cara penggunaan:\n- ${prefix + command} @user/nomor/reply <jumlah>\n\nContoh:\n- ${prefix + command} 6285226344606 50`
             }, { quoted: msg })
         }
 
@@ -21,7 +21,7 @@ export default {
 
         if (!targetJid) {
             return sock.sendMessage(jid, {
-                text: '❌ Tentukan target dengan @mention, reply pesan mereka, atau ketik nomornya.'
+                text: '❌ @mention, reply pesan target, atau ketik nomornya.'
             }, { quoted: msg })
         }
 
@@ -34,7 +34,7 @@ export default {
         await react('✅')
 
         return sock.sendMessage(jid, {
-            text: `✅ Limit @${targetJid.split('@')[0]} ditambah *${amount}*.\nSekarang: *${before + amount}*`,
+            text: `✅ Limit @${targetJid.split('@')[0]} ditambah ${amount}. sekarang: ${before + amount}`,
             mentions: [targetJid]
         }, { quoted: msg })
     }

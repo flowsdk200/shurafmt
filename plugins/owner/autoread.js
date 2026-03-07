@@ -1,3 +1,5 @@
+import settingsDb from '../../src/database/settings.js'
+
 export default {
     name: 'autoread',
     aliases: ['read', 'autoview'],
@@ -13,22 +15,34 @@ export default {
             const status = sock.autoRead ? 'ON' : 'OFF'
             useLimit()
             await sock.sendMessage(jid, {
-                text: `Status auto-read saat ini: ${status}\n\nGunakan:\n${prefix + command} on\n${prefix + command} off`
+                text: `Contoh penggunaan:\n- ${prefix + command} on\n- ${prefix + command} off`
             }, { quoted: msg })
             return
         }
 
         if (input === 'on') {
+            if (sock.autoRead) {
+                useLimit()
+                await sock.sendMessage(jid, { text: '⚠️ Auto-read sudah aktif.' }, { quoted: msg })
+                return
+            }
+
             sock.autoRead = true
-            config.autoRead = true
+            await settingsDb.setAutoRead(true)
             useLimit()
             await sock.sendMessage(jid, { text: '✅ Auto-read berhasil diaktifkan.' }, { quoted: msg })
             return
         }
 
         if (input === 'off') {
+            if (!sock.autoRead) {
+                useLimit()
+                await sock.sendMessage(jid, { text: '⚠️ Auto-read sudah mati.' }, { quoted: msg })
+                return
+            }
+
             sock.autoRead = false
-            config.autoRead = false
+            await settingsDb.setAutoRead(false)
             useLimit()
             await sock.sendMessage(jid, { text: '✅ Auto-read berhasil dimatikan.' }, { quoted: msg })
             return

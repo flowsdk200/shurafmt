@@ -21,7 +21,7 @@ export default {
         if (!list.length) {
             useLimit()
             return sock.sendMessage(jid, {
-                text: 'Belum ada pengguna premium aktif.'
+                text: 'belum ada pengguna premium aktif.'
             }, { quoted: msg })
         }
 

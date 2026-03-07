@@ -24,9 +24,9 @@ export default {
 
         return sock.sendMessage(jid, {
             text:
-                `📊 Limit @${num}\n` +
-                `• Status: ${role}\n` +
-                `• Sisa limit: ${limit}/${maxLimit}`,
+                `\`\`\`📊 Limit @${num}\n\n` +
+                `- Status: ${role}\n` +
+                `- Sisa limit: ${limit}/${maxLimit}\`\`\``,
             mentions: [checkJid]
         }, { quoted: msg })
     }

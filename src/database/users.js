@@ -31,7 +31,7 @@ class UserDatabase {
         }
 
         this._initialized = true
-        logger.ready(`[UserDB] Loaded ${docs.length} users from MongoDB${changed ? ` (normalized ${changed})` : ''}`)
+        logger.ready(`Loaded ${docs.length} users from MongoDB${changed ? ` (normalized ${changed})` : ''}`)
     }
 
     _toWibDateTime(input = new Date()) {
@@ -75,6 +75,7 @@ class UserDatabase {
                 lastSeen: this._toWibDateTime(),
                 messageCount: 0,
                 banned: false,
+                bannedExpiry: false,
                 premium: false,
                 owner: false,
                 limit: config.limits.free,
@@ -101,8 +102,14 @@ class UserDatabase {
         return user
     }
 
-    ban(jid) { return this.updateUser(jid, { banned: true }) }
-    unban(jid) { return this.updateUser(jid, { banned: false }) }
+    ban(jid, expiryDate) {
+        return this.updateUser(jid, {
+            banned: true,
+            bannedExpiry: expiryDate instanceof Date ? expiryDate.toISOString() : expiryDate
+        })
+    }
+
+    unban(jid) { return this.updateUser(jid, { banned: false, bannedExpiry: false }) }
 
     setPremium(jid, expiryDate) {
         return this.updateUser(jid, {
@@ -122,7 +129,24 @@ class UserDatabase {
     addOwner(jid) { return this.updateUser(jid, { owner: true }) }
     removeOwner(jid) { return this.updateUser(jid, { owner: false }) }
 
-    isBanned(jid) { return this._data[jid]?.banned === true }
+    getBanExpiry(jid) {
+        const val = this._data[jid]?.bannedExpiry
+        if (!val || val === false) return null
+        const d = new Date(val)
+        return Number.isNaN(d.getTime()) ? null : d
+    }
+
+    isBanned(jid) {
+        const user = this._data[jid]
+        if (!user || user.banned !== true) return false
+        const expiry = this.getBanExpiry(jid)
+        if (!expiry) return true
+        if (expiry <= new Date()) {
+            this.unban(jid)
+            return false
+        }
+        return true
+    }
 
     isPremium(jid) {
         const val = this._data[jid]?.premium
@@ -141,7 +165,7 @@ class UserDatabase {
 
     all() { return Object.values(this._data) }
     count() { return Object.keys(this._data).length }
-    getBanned() { return this.all().filter((u) => u.banned) }
+    getBanned() { return this.all().filter((u) => this.isBanned(u.jid)) }
     getPremium() { return this.all().filter((u) => this.isPremium(u.jid)) }
     getOwners() { return this.all().filter((u) => u.owner) }
 
@@ -158,8 +182,13 @@ class UserDatabase {
     checkAndResetLimit(jid, isOwner, isPremium) {
         const user = this.getUser(jid)
         const today = this._getWibDate()
-        if (user.limit === undefined || user.limitDate !== today) {
-            user.limit = this.getMaxLimit(isOwner, isPremium)
+        const maxLimit = this.getMaxLimit(isOwner, isPremium)
+        if (
+            user.limit === undefined ||
+            user.limitDate !== today ||
+            user.limit > maxLimit
+        ) {
+            user.limit = maxLimit
             user.limitDate = today
             this._persistUser(jid)
         }

@@ -11,7 +11,7 @@ export default {
         const targetJid = getTargetJid(msg, text)
         if (!targetJid) {
             return sock.sendMessage(jid, {
-                text: `❌ Format: ${prefix + command} @user/nomor/reply`
+                text: `❌ Cara penggunaan:\n- ${prefix + command} @user/nomor/reply\n\nContoh:\n- ${prefix + command} 6285226344606`
             }, { quoted: msg })
         }
 

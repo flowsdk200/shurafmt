@@ -23,7 +23,7 @@ export default {
         const durationMatch = text.match(DURATION_REGEX)
         if (!durationMatch) {
             return sock.sendMessage(jid, {
-                text: `❌ Format: ${prefix + command} @user/nomor/reply <durasi>\n\nContoh:\n${prefix + command} @user 7d\n${prefix + command} @user 30day`
+                text: `Cara penggunaan:\n- ${prefix + command} @user/nomor/reply <durasi>\n\nContoh:\n${prefix + command} 6285226345606 7day\n${prefix + command} 6285226344606 30day`
             }, { quoted: msg })
         }
 
@@ -33,7 +33,7 @@ export default {
 
         if (!targetJid) {
             return sock.sendMessage(jid, {
-                text: '❌ Tentukan target dengan @mention, reply pesan mereka, atau ketik nomornya.'
+                text: '❌ @mention, reply pesan target, atau ketik nomornya.'
             }, { quoted: msg })
         }
 

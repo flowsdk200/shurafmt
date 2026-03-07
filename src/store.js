@@ -33,7 +33,7 @@ class WAStore {
             for (const contact of contacts) {
                 this.contacts[contact.id] = { ...this.contacts[contact.id], ...contact }
             }
-            logger.info(`[Store] History sync: ${msgs.length} messages, ${chats.length} chats, ${contacts.length} contacts`)
+            logger.info(`Store history sync: ${msgs.length} messages, ${chats.length} chats, ${contacts.length} contacts`)
         })
 
         /** ── MESSAGES ── **/

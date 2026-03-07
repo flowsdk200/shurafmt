@@ -4,7 +4,7 @@ export default {
     description: 'Toggle goodbye message grup (on/off/status)',
     groupOnly: true,
     adminOnly: true,
-    execute: async ({ sock, msg, args, groupsDb, config, useLimit }) => {
+    execute: async ({ sock, msg, args, groupsDb, config, prefix, command, useLimit }) => {
         const jid = msg.key.remoteJid
         const input = (args[0] || '').toLowerCase()
 
@@ -14,13 +14,13 @@ export default {
         if (!input || ['status', 'cek', 'check'].includes(input)) {
             useLimit()
             return sock.sendMessage(jid, {
-                text: `Status goodbye grup saat ini: ${current ? 'on' : 'off'}\n\nGunakan:\n- goodbye on\n- goodbye off\n- goodbye status`
+                text: `Contoh penggunaan:\n- ${prefix + command} on\n- ${prefix + command} off`
             }, { quoted: msg })
         }
 
         if (input !== 'on' && input !== 'off') {
             return sock.sendMessage(jid, {
-                text: '❌ Format salah. gunakan: goodbye on/off/status'
+                text: `❌ Format salah.\n\nGunakan:\n- ${prefix + command} on/off`
             }, { quoted: msg })
         }
 

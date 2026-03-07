@@ -34,7 +34,7 @@ export default {
             if (!targetJid) {
                 await react('❌')
                 return sock.sendMessage(jid, {
-                    text: `❌ Cara penggunaan\n• ${prefix + command} all\n• ${prefix + command} @user\n• ${prefix + command} 628xxxx`
+                    text: `❌ Cara penggunaan:\n- ${prefix + command} all\n- ${prefix + command} @user\n- ${prefix + command} 6285226344606`
                 }, { quoted: msg })
             }
 
@@ -56,7 +56,7 @@ export default {
 
         if (!targetJid) {
             return sock.sendMessage(jid, {
-                text: `❌ Format:\n• ${prefix + command} @user <jumlah> — kurangi limit\n• ${prefix + command} @user — reset ke 0`
+                text: `❌ Cara penggunaan:\n- ${prefix + command} @user <jumlah> kurangi limit\n- ${prefix + command} @user reset ke 0\n\nContoh penggunaan:\n- ${prefix + command} 6285226344606 50\n- ${prefix + command} 6285226344606`
             }, { quoted: msg })
         }
 

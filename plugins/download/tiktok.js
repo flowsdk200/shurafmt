@@ -1,6 +1,5 @@
-/*
 import axios from 'axios'
-import { MusicalDown, searchTikTok } from '../../scrape/tiktok.js'
+import { tiktok2, searchTikTok } from '../../scrape/tiktok.js'
 
 const TIKTOK_REGEX = /https?:\/\/(vm\.|vt\.|www\.|m\.)?tiktok\.com\/[^\s]+/i
 
@@ -11,11 +10,65 @@ const fmtNum = (n) => {
     return String(n)
 }
 
+const toNum = (value) => {
+    if (value === undefined || value === null || value === '') return undefined
+    if (typeof value === 'number') return Number.isFinite(value) ? value : undefined
+    const cleaned = String(value).replace(/[^0-9.-]/g, '')
+    if (!cleaned) return undefined
+    const parsed = Number(cleaned)
+    return Number.isFinite(parsed) ? parsed : undefined
+}
+
+const pickStat = (stats, keys = []) => {
+    if (!stats || typeof stats !== 'object') return undefined
+    for (const key of keys) {
+        if (Object.prototype.hasOwnProperty.call(stats, key)) {
+            const parsed = toNum(stats[key])
+            if (parsed !== undefined) return parsed
+        }
+    }
+    return undefined
+}
+
 const fmtDur = (s) => {
     if (!s) return '?'
     const m = Math.floor(s / 60)
     const sec = String(s % 60).padStart(2, '0')
     return `${m}:${sec}`
+}
+
+const formatCaption = ({ type = 'media', title = '-', author = {}, stats = {}, duration = 0 }) => {
+    const authorLine = author?.username ? `@${author.username}` : (author?.nickname || '-')
+    const likes = fmtNum(toNum(pickStat(stats, ['likes', 'like_count', 'digg_count'])))
+    const comments = fmtNum(toNum(pickStat(stats, ['comments', 'comment_count'])))
+    const views = fmtNum(toNum(pickStat(stats, ['plays', 'play_count', 'views', 'view_count'])))
+    const shares = fmtNum(toNum(pickStat(stats, ['shares', 'share_count', 'shareCount'])))
+    const saved = fmtNum(toNum(pickStat(stats, [
+        'saves',
+        'saved',
+        'collect_count',
+        'collectCount',
+        'collects',
+        'collects_count',
+        'saved_count',
+        'save_count',
+        'download_count',
+        'downloadCount',
+        'downloads'
+    ])))
+    const dur = duration ? fmtDur(duration) : '-'
+
+    return (
+        `\`\`\`✅ TIKTOK ${type.toUpperCase()}\n\n` +
+        `× Title: ${String(title || '-').trim().slice(0, 80) || '-'}\n` +
+        `× Duration: ${dur}\n` +
+        `× Author: ${authorLine}\n` +
+        `× Likes: ${likes}\n` +
+        `× Comments: ${comments}\n` +
+        `× Views: ${views}\n` +
+        `× Shares: ${shares}\n` +
+        `× Saved: ${saved}\`\`\``
+    )
 }
 
 const fetchBuffer = async (url) => {
@@ -29,53 +82,52 @@ const fetchBuffer = async (url) => {
     return Buffer.from(data)
 }
 
-const pickVideoLink = (links = []) => {
-    return links.find((l) => l.type === 'mp4_hd')?.url
-        || links.find((l) => l.type === 'mp4')?.url
-        || links.find((l) => l.type === 'mp4_watermark')?.url
-        || null
-}
-
 export default {
     name: 'tiktok',
-    aliases: ['tt', 'tiktokdl'],
-    description: 'Download video/foto TikTok atau cari video TikTok',
+    aliases: ['tt', 'tiktokdl', 'ttslide', 'tiktokslide', 'tiktoksearch', 'ttsearch'],
+    description: 'Download/search tiktok via endpoint tiktok',
     execute: async ({ sock, msg, text, prefix, command, react, useLimit }) => {
         const jid = msg.key.remoteJid
-        const client = new MusicalDown()
+        const isSearchCommand = ['tiktoksearch', 'ttsearch'].includes(String(command || '').toLowerCase())
 
         if (!text) {
+            if (isSearchCommand) {
+                return sock.sendMessage(jid, {
+                    text: `❌ Masukkan kata pencarian tiktok.`
+                }, { quoted: msg })
+            }
+
             return sock.sendMessage(jid, {
-                text: `❌ Masukkan link tiktok atau kata pencarian.\n\nContoh:\n${prefix + command} https://vt.tiktok.com/xxxx\n${prefix + command} anime`
+                text: `Contoh penggunaan:\n- ${prefix + command} https://vt.tiktok.com/ZSmKrAQ2r/`
             }, { quoted: msg })
         }
 
         const urlMatch = text.match(TIKTOK_REGEX)
 
-        if (urlMatch) {
+        if (isSearchCommand && urlMatch) {
+            return sock.sendMessage(jid, {
+                text: `❌ Command ${prefix + command} khusus pencarian tiktok, bukan link.\n\nContoh:\n${prefix + command} anime`
+            }, { quoted: msg })
+        }
+
+        if (urlMatch && !isSearchCommand) {
             const url = urlMatch[0]
             await react('⏳')
 
             try {
-                const result = await client.download(url)
+                const result = await tiktok2(url)
 
-                if (result.type === 'slideshow') {
-                    const photos = result.photos || []
-                    if (!photos.length) {
-                        await react('❌')
-                        return sock.sendMessage(jid, {
-                            text: '❌ Slideshow ditemukan, tapi daftar foto kosong.'
-                        }, { quoted: msg })
-                    }
+                if (result.type === 'photo') {
+                    const { images, author, description, music, stats } = result
+                    const caption = formatCaption({
+                        type: 'photo',
+                        title: description,
+                        author,
+                        stats,
+                        duration: result?.duration || result?.music?.duration
+                    })
 
-                    const caption =
-                        `📸 TIKTOK SLIDESHOW\n\n` +
-                        `▦ Foto: ${photos.length} gambar`
-
-                    const mediaBuffers = await Promise.all(
-                        photos.map((item) => fetchBuffer(item.downloadUrl))
-                    )
-
+                    const mediaBuffers = await Promise.all(images.map((img) => fetchBuffer(img.url)))
                     const albumItems = mediaBuffers.map((buf, i) => ({
                         image: buf,
                         ...(i === 0 ? { caption } : {})
@@ -83,8 +135,8 @@ export default {
 
                     await sock.sendMessage(jid, { albumMessage: albumItems }, { quoted: msg })
 
-                    if (result.mp3Url) {
-                        const audioBuf = await fetchBuffer(result.mp3Url)
+                    if (music?.url) {
+                        const audioBuf = await fetchBuffer(music.url)
                         await sock.sendMessage(jid, {
                             audio: audioBuf,
                             mimetype: 'audio/mp4',
@@ -97,19 +149,16 @@ export default {
                     return
                 }
 
-                const videoUrl = pickVideoLink(result.links)
-                if (!videoUrl) {
-                    await react('❌')
-                    return sock.sendMessage(jid, {
-                        text: '❌ Gagal mendapatkan link video dari MusicalDown.'
-                    }, { quoted: msg })
-                }
+                const { video, author, description, music, stats } = result
+                const caption = formatCaption({
+                    type: 'video',
+                    title: description,
+                    author,
+                    stats,
+                    duration: result?.duration || music?.duration
+                })
 
-                const caption =
-                    `> Creator ${result.author || '-'}\n\n` +
-                    `${result.description || ' '}\n`
-
-                const videoBuf = await fetchBuffer(videoUrl)
+                const videoBuf = await fetchBuffer(video.url)
                 await sock.sendMessage(jid, {
                     video: videoBuf,
                     caption,
@@ -121,14 +170,13 @@ export default {
             } catch (err) {
                 await react('❌')
                 await sock.sendMessage(jid, {
-                    text: `❌ Gagal mengunduh tiktok: ${err.message}`
+                    text: `❌ Gagal mengunduh TikTok: ${err.message}`
                 }, { quoted: msg })
             }
             return
         }
 
         await react('⏳')
-
         try {
             const results = await searchTikTok(text, 20)
             if (!results.length) {
@@ -147,11 +195,13 @@ export default {
             }
 
             const item = valid[Math.floor(Math.random() * valid.length)]
-            const caption =
-                `> Creator: @${item.author?.username || '?'} (${item.author?.nickname || '?'})\n\n` +
-                `${(item.title || ' ').slice(0, 80)}\n\n` +
-
-                `👁 ${fmtNum(item.stats?.plays)}  ❤️ ${fmtNum(item.stats?.likes)}  💬 ${fmtNum(item.stats?.comments)}`
+            const caption = formatCaption({
+                type: 'search',
+                title: item.title,
+                author: item.author,
+                stats: item.stats,
+                duration: item.duration
+            })
 
             const buf = await fetchBuffer(item.videoUrl)
             await sock.sendMessage(jid, {
@@ -165,9 +215,8 @@ export default {
         } catch (err) {
             await react('❌')
             await sock.sendMessage(jid, {
-                text: `❌ Gagal mencari: ${err.message}`
+                text: `❌ Error: ${err.message}`
             }, { quoted: msg })
         }
     }
 }
-*/

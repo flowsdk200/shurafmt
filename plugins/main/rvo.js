@@ -51,7 +51,7 @@ export default {
                 await sock.sendMessage(jid, { text: '❌ Tipe media view-once ini belum didukung.' }, { quoted: msg })
             }
         } catch (err) {
-            await sock.sendMessage(jid, { text: `❌ Gagal mengunduh media: ${err.message}` }, { quoted: msg })
+            await sock.sendMessage(jid, { text: `❌ Error: ${err.message}` }, { quoted: msg })
         }
     }
 }

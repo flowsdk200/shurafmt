@@ -5,7 +5,7 @@ export default {
     groupOnly: true,
     botAdmin: true,
     adminOnly: true,
-    execute: async ({ sock, msg, args, groupsDb, useLimit }) => {
+    execute: async ({ sock, msg, args, groupsDb, prefix, command, useLimit }) => {
         const jid = msg.key.remoteJid
         const input = (args[0] || '').toLowerCase()
 
@@ -15,13 +15,13 @@ export default {
         if (!input || ['status', 'cek', 'check'].includes(input)) {
             useLimit()
             return sock.sendMessage(jid, {
-                text: `Status antibot grup saat ini: ${current ? 'on' : 'off'}\n\nGunakan:\n- antibot on\n- antibot off\n- antibot status`
+                text: `Contoh penggunaan:\n- ${prefix + command} on\n- ${prefix + command} off`
             }, { quoted: msg })
         }
 
         if (input !== 'on' && input !== 'off') {
             return sock.sendMessage(jid, {
-                text: '❌ Format salah. gunakan: antibot on/off/status'
+                text: `❌ Format salah.\n\nGunakan:\n- ${prefix + command} on/off`
             }, { quoted: msg })
         }
 

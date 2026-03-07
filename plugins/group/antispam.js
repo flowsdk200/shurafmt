@@ -4,7 +4,7 @@ export default {
     description: 'Toggle antispam grup (on/off/status)',
     groupOnly: true,
     adminOnly: true,
-    execute: async ({ sock, msg, args, groupsDb, useLimit }) => {
+    execute: async ({ sock, msg, args, groupsDb, prefix, command, useLimit }) => {
         const jid = msg.key.remoteJid
         const input = (args[0] || '').toLowerCase()
 
@@ -14,13 +14,13 @@ export default {
         if (!input || ['status', 'cek', 'check'].includes(input)) {
             useLimit()
             return sock.sendMessage(jid, {
-                text: `Status antispam grup saat ini: ${current ? 'on' : 'off'}\n\nGunakan:\n- antispam on\n- antispam off\n- antispam status`
+                text: `Contoh penggunaan:\n- ${prefix + command} on\n- ${prefix + command} off`
             }, { quoted: msg })
         }
 
         if (input !== 'on' && input !== 'off') {
             return sock.sendMessage(jid, {
-                text: '❌ Format salah. gunakan: antispam on/off/status'
+                text: `❌ Format salah.\n\nGunakan:\n-${prefix + command} on/off`
             }, { quoted: msg })
         }
 
