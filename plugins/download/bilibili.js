@@ -3,9 +3,8 @@ import os from 'os'
 import path from 'path'
 import vm from 'node:vm'
 import { spawn } from 'child_process'
+import axios from 'axios'
 import ffmpegPath from 'ffmpeg-static'
-import { gotScraping } from 'got-scraping'
-import logger from '../../src/utils/logger.js'
 
 const REQUEST_TIMEOUT = 30000
 const MEDIA_TIMEOUT = 120000
@@ -236,12 +235,15 @@ const summarizeState = (state, sourceUrl = '') => {
 }
 
 const fetchPageState = async (videoPageUrl) => {
-    const { statusCode, body } = await gotScraping(videoPageUrl, {
-        throwHttpErrors: false,
-        timeout: { request: REQUEST_TIMEOUT },
-        retry: { limit: 0 },
-        headers: PAGE_HEADERS
+    const response = await axios.get(videoPageUrl, {
+        headers: PAGE_HEADERS,
+        timeout: REQUEST_TIMEOUT,
+        validateStatus: () => true,
+        maxRedirects: 5,
+        responseType: 'text'
     })
+    const statusCode = response.status
+    const body = response.data
 
     if (statusCode !== 200) throw new Error(`Bilibili HTTP ${statusCode}`)
     const html = String(body || '')
@@ -254,12 +256,6 @@ const fetchPageState = async (videoPageUrl) => {
     if (!stateScript) throw new Error('State script tidak ditemukan')
     const state = evaluateState(stateScript)
     const fallbackDash = extractFallbackDashFromScript(stateScript)
-    logger.info(`[BILIBILI DEBUG] page=${videoPageUrl} status=${statusCode} html=${html.length} hasState=${!!stateScript}`)
-    logger.info(`[BILIBILI DEBUG] state=${JSON.stringify(summarizeState(state, videoPageUrl))}`)
-    logger.info(`[BILIBILI DEBUG] fallbackDash=${JSON.stringify({
-        audio: fallbackDash.audio.map((x) => ({ id: x.id, hasBaseUrl: !!cleanText(x.base_url) })),
-        video: fallbackDash.video.map((x) => ({ id: x.id, hasBaseUrl: !!cleanText(x.base_url) }))
-    })}`)
     return { state, fallbackDash }
 }
 
@@ -325,11 +321,11 @@ const resolveStreams = (state, fallbackDash = { audio: [], video: [] }) => {
 }
 
 const fetchMediaBuffer = async (url, referer) => {
-    const { statusCode, body } = await gotScraping(url, {
-        throwHttpErrors: false,
-        timeout: { request: MEDIA_TIMEOUT },
-        retry: { limit: 1 },
-        responseType: 'buffer',
+    const response = await axios.get(url, {
+        timeout: MEDIA_TIMEOUT,
+        validateStatus: () => true,
+        maxRedirects: 5,
+        responseType: 'arraybuffer',
         headers: {
             ...PAGE_HEADERS,
             accept: '*/*',
@@ -337,11 +333,12 @@ const fetchMediaBuffer = async (url, referer) => {
             referer
         }
     })
+    const statusCode = response.status
+    const body = response.data
 
     if (statusCode !== 200) throw new Error(`Media HTTP ${statusCode}`)
     const buf = Buffer.from(body || [])
     if (!buf.length) throw new Error('Media kosong')
-    logger.info(`[BILIBILI DEBUG] media status=${statusCode} size=${buf.length} referer=${referer} url=${url.slice(0, 180)}`)
     return buf
 }
 
@@ -437,7 +434,6 @@ export default {
         try {
             const { state, fallbackDash } = await fetchPageState(sourceUrl)
             const streams = resolveStreams(state, fallbackDash)
-            logger.info(`[BILIBILI DEBUG] resolved quality=${streams.qualityLabel} video=${streams.videoUrl.slice(0, 180)} audio=${streams.audioUrl.slice(0, 180)}`)
             const [videoDash, audioDash] = await Promise.all([
                 fetchMediaBuffer(streams.videoUrl, sourceUrl),
                 fetchMediaBuffer(streams.audioUrl, sourceUrl)
@@ -462,7 +458,6 @@ export default {
             useLimit()
             await react('✅')
         } catch (err) {
-            logger.error(`[BILIBILI DEBUG] failed url=${sourceUrl} error=${err.message}`)
             await react('❌')
             await sock.sendMessage(jid, {
                 text: `❌ Error: ${err.message}`
