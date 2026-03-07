@@ -5,6 +5,7 @@ import vm from 'node:vm'
 import { spawn } from 'child_process'
 import ffmpegPath from 'ffmpeg-static'
 import { gotScraping } from 'got-scraping'
+import logger from '../../src/utils/logger.js'
 
 const REQUEST_TIMEOUT = 30000
 const MEDIA_TIMEOUT = 120000
@@ -64,6 +65,40 @@ const evaluateState = (scriptText) => {
     return context.window?.__initialState || {}
 }
 
+const summarizeState = (state, sourceUrl = '') => {
+    const player = state?.player || {}
+    const dash = player?.playUrl?.dash || {}
+    const options = Array.isArray(player?.playerQualityOptions) ? player.playerQualityOptions : []
+    const videoTracks = Array.isArray(dash?.video) ? dash.video : []
+    const audioTracks = Array.isArray(dash?.audio) ? dash.audio : []
+
+    return {
+        sourceUrl,
+        title: cleanText(state?.ugc?.archive?.title || state?.share?.shareInfo?.title || ''),
+        playerKeys: Object.keys(player || {}),
+        playUrlKeys: Object.keys(player?.playUrl || {}),
+        optionCount: options.length,
+        optionSample: options.slice(0, 7).map((x) => ({
+            value: Number(x?.value) || 0,
+            label: cleanText(x?.label || ''),
+            hasUrl: !!cleanText(x?.url),
+            audioQuality: Number(x?.audioQuality) || 0
+        })),
+        dashVideoCount: videoTracks.length,
+        dashVideoSample: videoTracks.slice(0, 7).map((x) => ({
+            id: Number(x?.id) || 0,
+            hasBaseUrl: !!cleanText(x?.base_url || x?.baseUrl),
+            width: Number(x?.width) || 0,
+            height: Number(x?.height) || 0
+        })),
+        dashAudioCount: audioTracks.length,
+        dashAudioSample: audioTracks.slice(0, 5).map((x) => ({
+            id: Number(x?.id) || 0,
+            hasBaseUrl: !!cleanText(x?.base_url || x?.baseUrl)
+        }))
+    }
+}
+
 const fetchPageState = async (videoPageUrl) => {
     const { statusCode, body } = await gotScraping(videoPageUrl, {
         throwHttpErrors: false,
@@ -81,7 +116,10 @@ const fetchPageState = async (videoPageUrl) => {
 
     const stateScript = extractInitialStateScript(html)
     if (!stateScript) throw new Error('State script tidak ditemukan')
-    return evaluateState(stateScript)
+    const state = evaluateState(stateScript)
+    logger.info(`[BILIBILI DEBUG] page=${videoPageUrl} status=${statusCode} html=${html.length} hasState=${!!stateScript}`)
+    logger.info(`[BILIBILI DEBUG] state=${JSON.stringify(summarizeState(state, videoPageUrl))}`)
+    return state
 }
 
 const pickQualityOption = (options = []) => {
@@ -115,7 +153,11 @@ const resolveStreams = (state) => {
         selected?.url ||
         ''
     )
-    if (!videoUrl) throw new Error('Stream video tidak tersedia')
+    if (!videoUrl) {
+        throw new Error(
+            `Stream video tidak tersedia | options=${options.length} dashVideo=${videoTracks.length} selected=${Number(selected?.value) || 0} fallback=${Number(fallbackVideo?.id) || 0}`
+        )
+    }
 
     const audioTracks = Array.isArray(dash?.audio) ? dash.audio : []
     const preferredAudioId =
@@ -126,7 +168,11 @@ const resolveStreams = (state) => {
     const matchedAudio = audioTracks.find((x) => Number(x?.id) === preferredAudioId)
     const audio = matchedAudio || audioTracks.sort((a, b) => (Number(b?.id) || 0) - (Number(a?.id) || 0))[0] || null
     const audioUrl = cleanText(audio?.base_url || audio?.baseUrl || '')
-    if (!audioUrl) throw new Error('Stream audio tidak tersedia')
+    if (!audioUrl) {
+        throw new Error(
+            `Stream audio tidak tersedia | dashAudio=${audioTracks.length} preferredAudio=${preferredAudioId || 0}`
+        )
+    }
 
     return {
         videoUrl,
@@ -152,6 +198,7 @@ const fetchMediaBuffer = async (url, referer) => {
     if (statusCode !== 200) throw new Error(`Media HTTP ${statusCode}`)
     const buf = Buffer.from(body || [])
     if (!buf.length) throw new Error('Media kosong')
+    logger.info(`[BILIBILI DEBUG] media status=${statusCode} size=${buf.length} referer=${referer} url=${url.slice(0, 180)}`)
     return buf
 }
 
@@ -247,6 +294,7 @@ export default {
         try {
             const state = await fetchPageState(sourceUrl)
             const streams = resolveStreams(state)
+            logger.info(`[BILIBILI DEBUG] resolved quality=${streams.qualityLabel} video=${streams.videoUrl.slice(0, 180)} audio=${streams.audioUrl.slice(0, 180)}`)
             const [videoDash, audioDash] = await Promise.all([
                 fetchMediaBuffer(streams.videoUrl, sourceUrl),
                 fetchMediaBuffer(streams.audioUrl, sourceUrl)
@@ -271,6 +319,7 @@ export default {
             useLimit()
             await react('✅')
         } catch (err) {
+            logger.error(`[BILIBILI DEBUG] failed url=${sourceUrl} error=${err.message}`)
             await react('❌')
             await sock.sendMessage(jid, {
                 text: `❌ Error: ${err.message}`
