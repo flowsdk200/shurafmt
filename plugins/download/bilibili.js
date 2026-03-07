@@ -8,9 +8,24 @@ import ffmpegPath from 'ffmpeg-static'
 
 const REQUEST_TIMEOUT = 30000
 const MEDIA_TIMEOUT = 120000
+const BILIBILI_COOKIE = [
+    'bili_jct=25e909241987fa9506a3d693b6c4e069',
+    'bsource=search_google',
+    'DedeUserID=1356138176',
+    'buvid4=B6DD3FBD-96EF-BC96-7638-AFCC4B6F240D38250-126030723-7gsfsI%2BICrpewyLLl%2BJnMQ%3D%3D',
+    'buvid3=5d0bf8c9-5695-42f1-b43b-b649138e6ea927419infoc',
+    'g_state=%7B%22i_l%22%3A0%2C%22i_ll%22%3A1772899037562%2C%22i_b%22%3A%22rQhJFo6gUmJ8HxIyoTXReP6FwKeQOqlY1259eDRB1r8%22%2C%22i_e%22%3A%7B%22enable_itp_optimization%22%3A0%7D%7D',
+    'bstar-web-lang=id',
+    'DedeUserID__ckMd5=7647cf0d704f76206aa5f0e1aee8c35c',
+    'joy_jct=25e909241987fa9506a3d693b6c4e069',
+    'mid=1356138176',
+    'SESSDATA=52b20470%2C1788451069%2Cdfc33%2A3100c0'
+].join('; ')
+
 const PAGE_HEADERS = {
-    'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36',
-    'accept-language': 'id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7'
+    'user-agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36',
+    'accept-language': 'id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7',
+    cookie: BILIBILI_COOKIE
 }
 
 const cleanText = (value) => String(value || '').replace(/\s+/g, ' ').trim()
