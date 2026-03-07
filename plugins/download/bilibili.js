@@ -27,7 +27,7 @@ const extractVideoUrl = (input) => {
     try {
         const parsed = new URL(text)
         if (!/(^|\.)bilibili\.tv$/i.test(parsed.hostname)) return ''
-        if (!/^\/video\/\d+/.test(parsed.pathname) && !/^\/(?:id\/)?play\/\d+(?:\/\d+)?/.test(parsed.pathname)) return ''
+        if (!/^\/(?:id\/)?video\/\d+/.test(parsed.pathname) && !/^\/(?:id\/)?play\/\d+(?:\/\d+)?/.test(parsed.pathname)) return ''
         parsed.search = ''
         parsed.hash = ''
         return parsed.toString()
@@ -101,7 +101,20 @@ const resolveStreams = (state) => {
     const dash = player?.playUrl?.dash || {}
     const options = Array.isArray(player?.playerQualityOptions) ? player.playerQualityOptions : []
     const selected = pickQualityOption(options)
-    if (!selected?.url) throw new Error('Stream video tidak tersedia')
+    const videoTracks = Array.isArray(dash?.video) ? dash.video : []
+    const matchedVideo = videoTracks.find((x) => Number(x?.id) === Number(selected?.value))
+    const fallbackVideo = videoTracks
+        .filter((x) => Number(x?.id) <= 32)
+        .sort((a, b) => (Number(b?.id) || 0) - (Number(a?.id) || 0))[0]
+    const videoUrl = cleanText(
+        matchedVideo?.base_url ||
+        matchedVideo?.baseUrl ||
+        selected?.url ||
+        fallbackVideo?.base_url ||
+        fallbackVideo?.baseUrl ||
+        ''
+    )
+    if (!videoUrl) throw new Error('Stream video tidak tersedia')
 
     const audioTracks = Array.isArray(dash?.audio) ? dash.audio : []
     const matchedAudio = audioTracks.find((x) => Number(x?.id) === Number(selected?.audioQuality))
@@ -110,7 +123,7 @@ const resolveStreams = (state) => {
     if (!audioUrl) throw new Error('Stream audio tidak tersedia')
 
     return {
-        videoUrl: cleanText(selected.url),
+        videoUrl,
         audioUrl,
         qualityLabel: cleanText(selected.label || selected.value || '-') || '-'
     }
