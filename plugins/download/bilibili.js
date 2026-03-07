@@ -100,32 +100,38 @@ const resolveStreams = (state) => {
     const player = state?.player || {}
     const dash = player?.playUrl?.dash || {}
     const options = Array.isArray(player?.playerQualityOptions) ? player.playerQualityOptions : []
-    const selected = pickQualityOption(options)
     const videoTracks = Array.isArray(dash?.video) ? dash.video : []
-    const matchedVideo = videoTracks.find((x) => Number(x?.id) === Number(selected?.value))
-    const fallbackVideo = videoTracks
+    const selected = pickQualityOption(options)
+    const preferredVideo = videoTracks
         .filter((x) => Number(x?.id) <= 32)
         .sort((a, b) => (Number(b?.id) || 0) - (Number(a?.id) || 0))[0]
+    const matchedVideo = videoTracks.find((x) => Number(x?.id) === Number(selected?.value))
+    const fallbackVideo = preferredVideo || videoTracks.sort((a, b) => (Number(b?.id) || 0) - (Number(a?.id) || 0))[0]
     const videoUrl = cleanText(
         matchedVideo?.base_url ||
         matchedVideo?.baseUrl ||
-        selected?.url ||
         fallbackVideo?.base_url ||
         fallbackVideo?.baseUrl ||
+        selected?.url ||
         ''
     )
     if (!videoUrl) throw new Error('Stream video tidak tersedia')
 
     const audioTracks = Array.isArray(dash?.audio) ? dash.audio : []
-    const matchedAudio = audioTracks.find((x) => Number(x?.id) === Number(selected?.audioQuality))
-    const audio = matchedAudio || audioTracks[0] || null
+    const preferredAudioId =
+        Number(selected?.audioQuality) ||
+        Number(player?.currentAudioQuality) ||
+        Number(fallbackVideo?.audio_quality) ||
+        0
+    const matchedAudio = audioTracks.find((x) => Number(x?.id) === preferredAudioId)
+    const audio = matchedAudio || audioTracks.sort((a, b) => (Number(b?.id) || 0) - (Number(a?.id) || 0))[0] || null
     const audioUrl = cleanText(audio?.base_url || audio?.baseUrl || '')
     if (!audioUrl) throw new Error('Stream audio tidak tersedia')
 
     return {
         videoUrl,
         audioUrl,
-        qualityLabel: cleanText(selected.label || selected.value || '-') || '-'
+        qualityLabel: cleanText(selected?.label || fallbackVideo?.id || '-') || '-'
     }
 }
 
