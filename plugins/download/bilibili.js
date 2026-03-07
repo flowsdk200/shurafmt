@@ -67,13 +67,64 @@ const evaluateState = (scriptText) => {
 
 const decodeJsString = (value) => {
     try {
-        return JSON.parse(`"${String(value || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`)
+        return JSON.parse(`"${String(value || '').replace(/"/g, '\\"')}"`)
     } catch {
         return String(value || '')
             .replace(/\\u002F/g, '/')
             .replace(/\\u0026/g, '&')
             .replace(/\\\\/g, '\\')
     }
+}
+
+const splitTopLevelArgs = (input) => {
+    const parts = []
+    let current = ''
+    let depthParen = 0
+    let depthBracket = 0
+    let depthBrace = 0
+    let inString = false
+    let quote = ''
+    let escaped = false
+
+    for (const char of String(input || '')) {
+        current += char
+
+        if (inString) {
+            if (escaped) {
+                escaped = false
+                continue
+            }
+            if (char === '\\') {
+                escaped = true
+                continue
+            }
+            if (char === quote) {
+                inString = false
+                quote = ''
+            }
+            continue
+        }
+
+        if (char === '"' || char === '\'') {
+            inString = true
+            quote = char
+            continue
+        }
+
+        if (char === '(') depthParen += 1
+        else if (char === ')') depthParen -= 1
+        else if (char === '[') depthBracket += 1
+        else if (char === ']') depthBracket -= 1
+        else if (char === '{') depthBrace += 1
+        else if (char === '}') depthBrace -= 1
+        else if (char === ',' && depthParen === 0 && depthBracket === 0 && depthBrace === 0) {
+            parts.push(current.slice(0, -1).trim())
+            current = ''
+        }
+    }
+
+    if (current.trim()) parts.push(current.trim())
+    return parts
 }
 
 const extractFallbackDashFromScript = (scriptText) => {
@@ -83,12 +134,36 @@ const extractFallbackDashFromScript = (scriptText) => {
     const stringVars = new Map()
     const numberVars = new Map()
 
-    for (const match of source.matchAll(/\b([A-Za-z_$][\w$]*)="(https:\\u002F\\u002F[^"]+?\.m4s[^"]*)"/g)) {
-        stringVars.set(match[1], decodeJsString(match[2]))
+    const headerMatch = source.match(/^window\.__initialState=\(function\((.*?)\)\{/s)
+    const endIndex = source.lastIndexOf('))')
+    const startArgsIndex = source.lastIndexOf('}(', endIndex)
+
+    if (headerMatch && startArgsIndex > -1 && endIndex > startArgsIndex) {
+        const params = headerMatch[1].split(',').map((x) => x.trim()).filter(Boolean)
+        const argsRaw = source.slice(startArgsIndex + 2, endIndex)
+        const args = splitTopLevelArgs(argsRaw)
+
+        for (let i = 0; i < params.length; i += 1) {
+            const key = params[i]
+            const raw = String(args[i] || '').trim()
+            if (!key || !raw) continue
+
+            if ((raw.startsWith('"') && raw.endsWith('"')) || (raw.startsWith('\'') && raw.endsWith('\''))) {
+                const decoded = decodeJsString(raw.slice(1, -1))
+                if (decoded.includes('.m4s')) {
+                    stringVars.set(key, decoded)
+                }
+                continue
+            }
+
+            if (/^\d{1,6}$/.test(raw)) {
+                numberVars.set(key, Number(raw))
+            }
+        }
     }
 
-    for (const match of source.matchAll(/\b([A-Za-z_$][\w$]*)=(\d{1,6})\b/g)) {
-        numberVars.set(match[1], Number(match[2]))
+    for (const match of source.matchAll(/\b([A-Za-z_$][\w$]*)(?:\[\d+\])?="(https:\\u002F\\u002F[^"]+?\.m4s[^"]*)"/g)) {
+        if (!stringVars.has(match[1])) stringVars.set(match[1], decodeJsString(match[2]))
     }
 
     const pickSection = (from, to) => {
@@ -105,13 +180,17 @@ const extractFallbackDashFromScript = (scriptText) => {
     const parseItems = (section) => {
         if (!section) return []
         const items = []
-        const itemRegex = /base_url:([A-Za-z_$][\w$]*).*?id:([A-Za-z_$][\w$]*|\d+)/gs
+        const itemRegex = /base_url:([A-Za-z_$][\w$]*).*?(?:id:([A-Za-z_$][\w$]*|\d+))?/gs
+        let order = 0
         for (const match of section.matchAll(itemRegex)) {
             const varName = match[1]
-            const idRaw = match[2]
+            const idRaw = match[2] || ''
             const baseUrl = cleanText(stringVars.get(varName) || '')
             const id = /^\d+$/.test(idRaw) ? Number(idRaw) : (numberVars.get(idRaw) || 0)
-            if (baseUrl && id) items.push({ id, base_url: baseUrl, baseUrl: baseUrl })
+            if (baseUrl) {
+                order += 1
+                items.push({ id: id || order, base_url: baseUrl, baseUrl: baseUrl })
+            }
         }
         return items
     }
@@ -202,11 +281,13 @@ const resolveStreams = (state, fallbackDash = { audio: [], video: [] }) => {
     const options = Array.isArray(player?.playerQualityOptions) ? player.playerQualityOptions : []
     const videoTracks = Array.isArray(dash?.video) && dash.video.length ? dash.video : (Array.isArray(fallbackDash?.video) ? fallbackDash.video : [])
     const selected = pickQualityOption(options)
-    const preferredVideo = videoTracks
-        .filter((x) => Number(x?.id) <= 32)
-        .sort((a, b) => (Number(b?.id) || 0) - (Number(a?.id) || 0))[0]
-    const matchedVideo = videoTracks.find((x) => Number(x?.id) === Number(selected?.value))
-    const fallbackVideo = preferredVideo || videoTracks.sort((a, b) => (Number(b?.id) || 0) - (Number(a?.id) || 0))[0]
+    const preferredVideo = selected
+        ? videoTracks
+            .filter((x) => Number(x?.id) <= 32)
+            .sort((a, b) => (Number(b?.id) || 0) - (Number(a?.id) || 0))[0]
+        : null
+    const matchedVideo = selected ? videoTracks.find((x) => Number(x?.id) === Number(selected?.value)) : null
+    const fallbackVideo = matchedVideo || preferredVideo || videoTracks[0] || null
     const videoUrl = cleanText(
         matchedVideo?.base_url ||
         matchedVideo?.baseUrl ||
@@ -239,7 +320,7 @@ const resolveStreams = (state, fallbackDash = { audio: [], video: [] }) => {
     return {
         videoUrl,
         audioUrl,
-        qualityLabel: cleanText(selected?.label || fallbackVideo?.id || '-') || '-'
+        qualityLabel: cleanText(selected?.label || '-') || '-'
     }
 }
 
