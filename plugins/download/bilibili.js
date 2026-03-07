@@ -65,6 +65,63 @@ const evaluateState = (scriptText) => {
     return context.window?.__initialState || {}
 }
 
+const decodeJsString = (value) => {
+    try {
+        return JSON.parse(`"${String(value || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`)
+    } catch {
+        return String(value || '')
+            .replace(/\\u002F/g, '/')
+            .replace(/\\u0026/g, '&')
+            .replace(/\\\\/g, '\\')
+    }
+}
+
+const extractFallbackDashFromScript = (scriptText) => {
+    const source = String(scriptText || '')
+    if (!source) return { audio: [], video: [] }
+
+    const stringVars = new Map()
+    const numberVars = new Map()
+
+    for (const match of source.matchAll(/\b([A-Za-z_$][\w$]*)="(https:\\u002F\\u002F[^"]+?\.m4s[^"]*)"/g)) {
+        stringVars.set(match[1], decodeJsString(match[2]))
+    }
+
+    for (const match of source.matchAll(/\b([A-Za-z_$][\w$]*)=(\d{1,6})\b/g)) {
+        numberVars.set(match[1], Number(match[2]))
+    }
+
+    const pickSection = (from, to) => {
+        const start = source.indexOf(from)
+        if (start < 0) return ''
+        const end = source.indexOf(to, start)
+        if (end < 0) return ''
+        return source.slice(start, end)
+    }
+
+    const audioSection = pickSection('audio:[', '],video:[')
+    const videoSection = pickSection('video:[', '],errorCode:')
+
+    const parseItems = (section) => {
+        if (!section) return []
+        const items = []
+        const itemRegex = /base_url:([A-Za-z_$][\w$]*).*?id:([A-Za-z_$][\w$]*|\d+)/gs
+        for (const match of section.matchAll(itemRegex)) {
+            const varName = match[1]
+            const idRaw = match[2]
+            const baseUrl = cleanText(stringVars.get(varName) || '')
+            const id = /^\d+$/.test(idRaw) ? Number(idRaw) : (numberVars.get(idRaw) || 0)
+            if (baseUrl && id) items.push({ id, base_url: baseUrl, baseUrl: baseUrl })
+        }
+        return items
+    }
+
+    return {
+        audio: parseItems(audioSection),
+        video: parseItems(videoSection)
+    }
+}
+
 const summarizeState = (state, sourceUrl = '') => {
     const player = state?.player || {}
     const dash = player?.playUrl?.dash || {}
@@ -117,9 +174,14 @@ const fetchPageState = async (videoPageUrl) => {
     const stateScript = extractInitialStateScript(html)
     if (!stateScript) throw new Error('State script tidak ditemukan')
     const state = evaluateState(stateScript)
+    const fallbackDash = extractFallbackDashFromScript(stateScript)
     logger.info(`[BILIBILI DEBUG] page=${videoPageUrl} status=${statusCode} html=${html.length} hasState=${!!stateScript}`)
     logger.info(`[BILIBILI DEBUG] state=${JSON.stringify(summarizeState(state, videoPageUrl))}`)
-    return state
+    logger.info(`[BILIBILI DEBUG] fallbackDash=${JSON.stringify({
+        audio: fallbackDash.audio.map((x) => ({ id: x.id, hasBaseUrl: !!cleanText(x.base_url) })),
+        video: fallbackDash.video.map((x) => ({ id: x.id, hasBaseUrl: !!cleanText(x.base_url) }))
+    })}`)
+    return { state, fallbackDash }
 }
 
 const pickQualityOption = (options = []) => {
@@ -134,11 +196,11 @@ const pickQualityOption = (options = []) => {
     return valid.sort((a, b) => (Number(a.value) || 0) - (Number(b.value) || 0))[0]
 }
 
-const resolveStreams = (state) => {
+const resolveStreams = (state, fallbackDash = { audio: [], video: [] }) => {
     const player = state?.player || {}
     const dash = player?.playUrl?.dash || {}
     const options = Array.isArray(player?.playerQualityOptions) ? player.playerQualityOptions : []
-    const videoTracks = Array.isArray(dash?.video) ? dash.video : []
+    const videoTracks = Array.isArray(dash?.video) && dash.video.length ? dash.video : (Array.isArray(fallbackDash?.video) ? fallbackDash.video : [])
     const selected = pickQualityOption(options)
     const preferredVideo = videoTracks
         .filter((x) => Number(x?.id) <= 32)
@@ -159,7 +221,7 @@ const resolveStreams = (state) => {
         )
     }
 
-    const audioTracks = Array.isArray(dash?.audio) ? dash.audio : []
+    const audioTracks = Array.isArray(dash?.audio) && dash.audio.length ? dash.audio : (Array.isArray(fallbackDash?.audio) ? fallbackDash.audio : [])
     const preferredAudioId =
         Number(selected?.audioQuality) ||
         Number(player?.currentAudioQuality) ||
@@ -292,8 +354,8 @@ export default {
         await react('⏳')
 
         try {
-            const state = await fetchPageState(sourceUrl)
-            const streams = resolveStreams(state)
+            const { state, fallbackDash } = await fetchPageState(sourceUrl)
+            const streams = resolveStreams(state, fallbackDash)
             logger.info(`[BILIBILI DEBUG] resolved quality=${streams.qualityLabel} video=${streams.videoUrl.slice(0, 180)} audio=${streams.audioUrl.slice(0, 180)}`)
             const [videoDash, audioDash] = await Promise.all([
                 fetchMediaBuffer(streams.videoUrl, sourceUrl),
