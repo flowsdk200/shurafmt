@@ -282,10 +282,10 @@ export default {
             if (hasNextPart) {
                 await sendInteractive(sock, jid, {
                     title: 'Lanjut part berikutnya?',
-                    footer: `NEXT PANEL (${selectedPart.index + 1}/${totalParts})`,
+                    footer: `NEXT PART (${selectedPart.index + 1}/${totalParts})`,
                     buttons: [{
                         id: `${NEXT_PART_ID_PREFIX}${story.id}:${selectedPart.index + 1}`,
-                        text: 'NEXT PANEL'
+                        text: 'NEXT PART'
                     }]
                 }, { quoted: msg })
             }
