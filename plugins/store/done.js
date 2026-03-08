@@ -39,7 +39,7 @@ export default {
         const targetJid = getTargetJid(msg, args[0] || '')
         if (!targetJid) {
             return sock.sendMessage(jid, {
-                text: 'Gunakan dengan cara tag/reply pesan user.\n\nContoh penggunaan:\n- .done @shura'
+                text: 'Gunakan dengan cara tag/reply pesan user.\n\nContoh penggunaan:\n- .done @user'
             }, { quoted: msg })
         }
 

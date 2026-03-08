@@ -85,7 +85,12 @@ export default {
 
         if (!targetJid || !product) {
             return sock.sendMessage(jid, {
-                text: 'Gunakan dengan cara tag/reply pesan user + nama produk.\n\nContoh penggunaan:\n- .proses @shura script bot'
+                text:
+                    'Cara penggunaan:\n' +
+                    '- .proses @user canva pro\n' +
+                    '- .proses @user canva pro, 35000\n' +
+                    '- .proses @user canva pro|35000\n\n' +
+                    'Tag/reply pesan user lalu ketik .proses canva pro'
             }, { quoted: msg })
         }
 
