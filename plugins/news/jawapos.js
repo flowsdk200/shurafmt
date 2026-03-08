@@ -1,11 +1,16 @@
 import axios from 'axios'
 import { load } from 'cheerio'
-import { gotScraping } from 'got-scraping'
 
 const SOURCE_URL = 'https://www.jawapos.com/'
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
 const MAX_RESULTS = 15
 const MAX_CANDIDATES = 60
+const HTML_HEADERS = {
+    'User-Agent': USER_AGENT,
+    'Accept-Language': 'id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7',
+    Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    Referer: SOURCE_URL
+}
 
 const cleanText = (value) => String(value || '').replace(/\s+/g, ' ').trim()
 
@@ -42,25 +47,69 @@ const toAbsoluteUrl = (href, baseUrl = SOURCE_URL) => {
 
 const ARTICLE_RE = /^https?:\/\/(?:www\.)?jawapos\.com\/[^/]+\/\d{10}\/[^/?#]+/i
 
-const fetchHomeLinks = async () => {
-    const response = await gotScraping({
-        url: SOURCE_URL,
-        timeout: { request: 20000 },
-        responseType: 'text',
-        headers: {
-            'User-Agent': USER_AGENT,
-            'Accept-Language': 'id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7',
-            Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
-        }
-    })
+const fetchHtml = async (url) => {
+    try {
+        const response = await axios.get(url, {
+            timeout: 30000,
+            responseType: 'text',
+            validateStatus: () => true,
+            headers: HTML_HEADERS
+        })
 
-    if (response.statusCode !== 200) {
-        throw new Error(`Homepage merespon status ${response.statusCode}.`)
+        const html = String(response.data || '')
+        console.log(`[JAWAPOS DEBUG] axios status=${response.status} url=${url} bytes=${html.length}`)
+        if (response.status === 200 && html.trim()) {
+            return { html, transport: 'axios', status: response.status }
+        }
+    } catch (err) {
+        console.log(`[JAWAPOS DEBUG] axios failed url=${url} error=${err.message}`)
     }
 
-    console.log(`[JAWAPOS DEBUG] home status=${response.statusCode} url=${SOURCE_URL} bytes=${String(response.body || '').length}`)
+    try {
+        const response = await fetch(url, {
+            headers: HTML_HEADERS
+        })
+        const html = await response.text()
+        console.log(`[JAWAPOS DEBUG] fetch status=${response.status} url=${url} bytes=${html.length}`)
+        if (response.status === 200 && html.trim()) {
+            return { html, transport: 'fetch', status: response.status }
+        }
+    } catch (err) {
+        console.log(`[JAWAPOS DEBUG] fetch failed url=${url} error=${err.message}`)
+    }
 
-    const $ = load(String(response.body || ''))
+    try {
+        const rJinaUrl = `https://r.jina.ai/http://${url.replace(/^https?:\/\//i, '')}`
+        const response = await axios.get(rJinaUrl, {
+            timeout: 30000,
+            responseType: 'text',
+            validateStatus: () => true,
+            headers: {
+                'User-Agent': USER_AGENT,
+                Accept: 'text/plain,text/markdown;q=0.9,*/*;q=0.8'
+            }
+        })
+        const html = String(response.data || '')
+        console.log(`[JAWAPOS DEBUG] rjina status=${response.status} url=${url} bytes=${html.length}`)
+        if (response.status === 200 && html.trim()) {
+            return { html, transport: 'rjina', status: response.status }
+        }
+    } catch (err) {
+        console.log(`[JAWAPOS DEBUG] rjina failed url=${url} error=${err.message}`)
+    }
+
+    return { html: '', transport: 'none', status: 0 }
+}
+
+const fetchHomeLinks = async () => {
+    const response = await fetchHtml(SOURCE_URL)
+    if (response.status !== 200 || !response.html.trim()) {
+        throw new Error(`Homepage kosong atau merespon status ${response.status || '-'}.`)
+    }
+
+    console.log(`[JAWAPOS DEBUG] home transport=${response.transport} status=${response.status} url=${SOURCE_URL} bytes=${response.html.length}`)
+
+    const $ = load(response.html)
     const links = []
 
     $('a[href]').each((_, node) => {
@@ -77,21 +126,11 @@ const fetchHomeLinks = async () => {
 }
 
 const fetchArticleMeta = async (url) => {
-    const response = await gotScraping({
-        url,
-        timeout: { request: 20000 },
-        responseType: 'text',
-        headers: {
-            'User-Agent': USER_AGENT,
-            'Accept-Language': 'id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7',
-            Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
-        }
-    })
+    const response = await fetchHtml(url)
+    console.log(`[JAWAPOS DEBUG] article transport=${response.transport} status=${response.status} url=${url}`)
+    if (response.status !== 200 || !response.html.trim()) return null
 
-    console.log(`[JAWAPOS DEBUG] article status=${response.statusCode} url=${url}`)
-    if (response.statusCode !== 200) return null
-
-    const html = String(response.body || '')
+    const html = response.html
     const getMeta = (name) => cleanText(
         html.match(new RegExp(`<meta[^>]+(?:property|name)=["']${name}["'][^>]+content=["']([^"']+)`, 'i'))?.[1] || ''
     )
