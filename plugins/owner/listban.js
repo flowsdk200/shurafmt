@@ -13,7 +13,6 @@ export default {
     name: 'listban',
     aliases: ['listbanned', 'lb'],
     description: 'Lihat daftar user yang sedang diban',
-    ownerOnly: true,
     execute: async ({ sock, msg, usersDb, useLimit }) => {
         const jid = msg.key.remoteJid
         const list = usersDb.getBanned()
