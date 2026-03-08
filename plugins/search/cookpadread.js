@@ -110,7 +110,7 @@ const fetchRecipeHtml = async (url) => {
     return html
 }
 
-const fetchImageBuffer = async (url) => {
+const fetchImageBuffer = async (url, referer = BASE_URL) => {
     const target = toAbsoluteUrl(url)
     if (!target) return null
 
@@ -123,7 +123,7 @@ const fetchImageBuffer = async (url) => {
             'User-Agent': USER_AGENT,
             'Accept-Language': 'id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7',
             Accept: 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
-            Referer: BASE_URL
+            Referer: referer
         }
     })
 
@@ -218,6 +218,34 @@ const parseDomTips = ($) => {
     return sectionText || ''
 }
 
+const normalizeRecipeImage = (value) => {
+    if (!value) return null
+
+    if (typeof value === 'string') {
+        return toAbsoluteUrl(value)
+    }
+
+    if (Array.isArray(value)) {
+        for (const item of value) {
+            const found = normalizeRecipeImage(item)
+            if (found) return found
+        }
+        return null
+    }
+
+    if (typeof value === 'object') {
+        return normalizeRecipeImage(
+            value.url ||
+            value.contentUrl ||
+            value['@id'] ||
+            value.image ||
+            value.src
+        )
+    }
+
+    return null
+}
+
 const parseRecipePage = (html, fallbackUrl) => {
     const $ = cheerio.load(html)
     const recipeJson = findRecipeJsonLd($)
@@ -236,11 +264,8 @@ const parseRecipePage = (html, fallbackUrl) => {
         recipeJson?.description ||
         $('meta[property="og:description"]').attr('content')
     ) || '-'
-    const image = toAbsoluteUrl(
-        recipeJson?.image?.[0] ||
-        recipeJson?.image ||
-        $('meta[property="og:image"]').attr('content')
-    )
+    const image = normalizeRecipeImage(recipeJson?.image) ||
+        toAbsoluteUrl($('meta[property="og:image"]').attr('content'))
     const url = toAbsoluteUrl(
         recipeJson?.url ||
         $('link[rel="canonical"]').attr('href') ||
@@ -280,16 +305,13 @@ const parseRecipePage = (html, fallbackUrl) => {
 }
 
 const buildHeader = (recipe) => {
-    const parts = [
-        `Title: ${recipe.title}`,
-        `Author: ${recipe.author}`,
-        `Porsi: ${recipe.yieldText}`
-    ]
-
-    if (recipe.publishedAt) parts.push(`Publish: ${recipe.publishedAt}`)
-    parts.push(`Link: ${recipe.url}`)
-
-    return `\`\`\`${parts.join('\n')}\`\`\``
+    return (
+        `${recipe.title}\n\n` +
+        `\`\`\`• Author: ${recipe.author}\n` +
+        `• Porsi: ${recipe.yieldText}\n` +
+        `${recipe.publishedAt ? `• Publish: ${recipe.publishedAt}\n` : ''}` +
+        `• Link: ${recipe.url}\`\`\``
+    )
 }
 
 const buildBody = (recipe) => {
@@ -314,6 +336,12 @@ const buildBody = (recipe) => {
         `Bahan:\n${ingredientsBlock}\n\n` +
         `Cara Membuat:\n${stepsBlock}${tipsBlock}`
     ).trim()
+}
+
+const buildMessage = (recipe) => {
+    const header = buildHeader(recipe)
+    const body = buildBody(recipe)
+    return `${header}\n\n${body}`.trim()
 }
 
 export default {
@@ -344,21 +372,29 @@ export default {
             const recipeUrl = buildRecipeUrl(recipeInput, recipeId)
             const html = await fetchRecipeHtml(recipeUrl)
             const recipe = parseRecipePage(html, recipeUrl)
-            const header = buildHeader(recipe)
-            const bodyChunks = splitToChunks(buildBody(recipe))
-            const imageBuffer = recipe.image ? await fetchImageBuffer(recipe.image).catch(() => null) : null
+            const fullMessage = buildMessage(recipe)
+            const messageChunks = splitToChunks(fullMessage)
+            const imageBuffer = recipe.image ? await fetchImageBuffer(recipe.image, recipeUrl).catch(() => null) : null
 
-            if (imageBuffer) {
+            if (imageBuffer && messageChunks.length === 1) {
                 await sock.sendMessage(jid, {
                     image: imageBuffer,
-                    caption: header
+                    caption: messageChunks[0]
                 }, { quoted: msg })
             } else {
-                await sock.sendMessage(jid, { text: header }, { quoted: msg })
-            }
+                const [firstChunk, ...restChunks] = messageChunks
+                if (imageBuffer) {
+                    await sock.sendMessage(jid, {
+                        image: imageBuffer,
+                        caption: firstChunk
+                    }, { quoted: msg })
+                } else {
+                    await sock.sendMessage(jid, { text: firstChunk }, { quoted: msg })
+                }
 
-            for (const chunk of bodyChunks) {
-                await sock.sendMessage(jid, { text: chunk }, { quoted: msg })
+                for (const chunk of restChunks) {
+                    await sock.sendMessage(jid, { text: chunk }, { quoted: msg })
+                }
             }
 
             useLimit()
