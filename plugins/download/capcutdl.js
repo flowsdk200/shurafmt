@@ -243,6 +243,37 @@ const fetchRemoteSize = async (url) => {
     }
 }
 
+const fetchVideoBuffer = async (url) => {
+    const target = cleanText(url)
+    if (!/^https?:\/\//i.test(target)) throw new Error('URL video 3Bic tidak valid.')
+
+    const { statusCode, body, headers } = await gotScraping(target, {
+        throwHttpErrors: false,
+        responseType: 'buffer',
+        timeout: { request: REQUEST_TIMEOUT },
+        retry: { limit: 0 },
+        followRedirect: true,
+        headers: {
+            'User-Agent': USER_AGENT,
+            Referer: ENTRY_URL,
+            Accept: 'video/mp4,application/octet-stream;q=0.9,*/*;q=0.8'
+        }
+    })
+
+    if (statusCode < 200 || statusCode >= 400) {
+        throw new Error(`Gagal mengambil video 3Bic (${statusCode})`)
+    }
+
+    const contentType = String(headers?.['content-type'] || '').toLowerCase()
+    if (contentType && !contentType.includes('video') && !contentType.includes('octet-stream')) {
+        throw new Error('Respons video 3Bic tidak valid.')
+    }
+
+    const buffer = Buffer.isBuffer(body) ? body : Buffer.from(body || [])
+    if (!buffer.length) throw new Error('Buffer video 3Bic kosong.')
+    return buffer
+}
+
 const buildCaption = (detail, result, sizeText) => {
     if (detail) {
         return (
@@ -295,10 +326,13 @@ export default {
                 }, { quoted: msg })
             }
 
-            const sizeText = await fetchRemoteSize(videoUrl)
+            const [sizeText, videoBuffer] = await Promise.all([
+                fetchRemoteSize(videoUrl),
+                fetchVideoBuffer(videoUrl)
+            ])
 
             await sock.sendMessage(jid, {
-                video: { url: videoUrl },
+                video: videoBuffer,
                 mimetype: 'video/mp4',
                 caption: buildCaption(detail, result, sizeText)
             }, { quoted: msg })
