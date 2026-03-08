@@ -1,4 +1,4 @@
-import { sendDelete } from '../../src/utils/message.js'
+import { normalizeJid } from '../../src/utils/jid.js'
 
 export default {
     name: 'delete',
@@ -7,27 +7,27 @@ export default {
     groupOnly: true,
     botAdmin: true,
     adminOnly: true,
-    execute: async ({ sock, msg, prefix, command, react, useLimit }) => {
+    execute: async ({ sock, msg, prefix, command, useLimit, isQuoted, contextInfo, botJid }) => {
         const jid = msg.key.remoteJid
-        const quoted = msg.quoted
 
-        if (!quoted?.key?.id) {
+        if (!isQuoted || !contextInfo?.stanzaId) {
             return sock.sendMessage(jid, {
-                text: `reply pesan lalu ketik ${prefix + command}`
+                text: `reply pesan user lalu ketik ${prefix + command}`
             }, { quoted: msg })
         }
 
-        await react('⏳')
+        const quotedSender = normalizeJid(contextInfo.participant || '')
+        const deletingOwnBotMessage = quotedSender === botJid
 
-        try {
-            await sendDelete(sock, jid, quoted.key)
-            useLimit()
-            await react('✅')
-        } catch (err) {
-            await react('❌')
-            await sock.sendMessage(jid, {
-                text: `❌ Error: ${err.message}`
-            }, { quoted: msg })
-        }
+        await sock.sendMessage(jid, {
+            delete: {
+                remoteJid: jid,
+                fromMe: deletingOwnBotMessage,
+                id: contextInfo.stanzaId,
+                participant: quotedSender || undefined
+            }
+        })
+
+        useLimit()
     }
 }
