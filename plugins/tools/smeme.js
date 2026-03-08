@@ -56,9 +56,7 @@ export default {
             return sock.sendMessage(jid, {
                 text:
                     `Cara penggunaan:\n` +
-                    `- ${prefix + command} teks atas|teks bawah + reply gambar\n\n` +
-                    `Contoh:\n` +
-                    `- ${prefix + command} hello|world`
+                    `- ${prefix + command} teks atas|teks bawah + reply gambar`
             }, { quoted: msg })
         }
 
