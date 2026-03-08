@@ -7,6 +7,7 @@ const SOURCE_CANDIDATES = [
 ]
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
 const MAX_RESULTS = 15
+const RECURSION_MAX_DEPTH = 5
 const HTML_HEADERS = {
     'User-Agent': USER_AGENT,
     'Accept-Language': 'id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7',
@@ -78,42 +79,140 @@ const fetchHtml = async (url) => {
         console.log(`[JAWAPOS DEBUG] fetch failed url=${url} error=${err.message}`)
     }
 
-    try {
-        const rJinaUrl = `https://r.jina.ai/http://${url.replace(/^https?:\/\//i, '')}`
-        const response = await axios.get(rJinaUrl, {
-            timeout: 30000,
-            responseType: 'text',
-            validateStatus: () => true,
-            headers: {
-                'User-Agent': USER_AGENT,
-                Accept: 'text/plain,text/markdown;q=0.9,*/*;q=0.8'
-            }
-        })
-        const html = String(response.data || '')
-        console.log(`[JAWAPOS DEBUG] rjina status=${response.status} url=${url} bytes=${html.length}`)
-        if (response.status === 200 && html.trim()) {
-            return { html, transport: 'rjina', status: response.status }
-        }
-    } catch (err) {
-        console.log(`[JAWAPOS DEBUG] rjina failed url=${url} error=${err.message}`)
-    }
-
     return { html: '', transport: 'none', status: 0 }
 }
 
 const extractNextData = (html) => {
-    const match = String(html || '').match(/<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/i)
-    if (!match?.[1]) return null
-    try {
-        return JSON.parse(match[1])
-    } catch {
-        return null
+    const text = String(html || '')
+
+    const directMatch = text.match(/<script\b[^>]*\b(?:id|name)=["']__NEXT_DATA__["'][^>]*>([\s\S]*?)<\/script>/i)
+    if (directMatch?.[1]) {
+        try {
+            const parsed = JSON.parse(directMatch[1])
+            if (parsed?.props?.pageProps) return parsed
+        } catch {
+            // fallback below
+        }
     }
+
+    const scripts = text.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)
+    for (const [, raw] of scripts) {
+        if (!raw) continue
+        const snippet = raw.trim()
+        if (!/"__NEXT_DATA__"/.test(snippet) && !/__NEXT_DATA__/i.test(snippet)) continue
+        try {
+            const parsed = JSON.parse(snippet)
+            if (parsed?.props?.pageProps) return parsed
+        } catch {
+            // ignore malformed script payloads
+        }
+    }
+
+    const windowMatch = text.match(/window\.__NEXT_DATA__\s*=\s*(\{[\s\S]*?\})\s*;?/i)
+    if (windowMatch?.[1]) {
+        try {
+            const parsed = JSON.parse(windowMatch[1])
+            if (parsed?.props?.pageProps) return parsed
+        } catch {
+            // ignore malformed window payloads
+        }
+    }
+
+    return null
+}
+
+const toAbsoluteImage = (image, article) => {
+    if (!image) return null
+    if (typeof image === 'string') return toAbsoluteUrl(image)
+    if (typeof image !== 'object') return null
+    return toAbsoluteUrl(
+        image.url ||
+        image.src ||
+        image.path ||
+        image.image ||
+        image.photo ||
+        image.thumbnail ||
+        image.mainPhoto ||
+        image.cover ||
+        image.ogImage ||
+        image.original,
+        article?.imageBase || null
+    )
+}
+
+const extractArticleImage = (article) => {
+    if (!article || typeof article !== 'object') return null
+
+    const candidateValues = [
+        article.image,
+        article.cover,
+        article.thumbnail,
+        article.heroImage,
+        article.mainPhoto,
+        article.photo,
+        article.media,
+        article.ogImage,
+        article.imageUrl,
+        article.image_url,
+        article.urlImage
+    ]
+
+    for (const candidate of candidateValues) {
+        const candidateUrl = toAbsoluteImage(candidate, article)
+        if (candidateUrl) return candidateUrl
+    }
+
+    return null
+}
+
+const isArticleShape = (value) => {
+    if (!value || typeof value !== 'object') return false
+    const title = cleanText(value.title)
+    const slug = cleanText(value.slug)
+    const articleId = cleanText(value.article_id || value.id)
+    const hasArticleSignals = Boolean(
+        value.published_at ||
+        value.description ||
+        value.category ||
+        value.content ||
+        value.image ||
+        value.cover
+    )
+    return title && slug && articleId && hasArticleSignals
+}
+
+const collectArticleCandidates = (pageProps) => {
+    const candidates = []
+    const visited = new Set()
+
+    const walk = (node, depth = 0) => {
+        if (!node || typeof node !== 'object' || visited.has(node) || depth > RECURSION_MAX_DEPTH) return
+        visited.add(node)
+
+        if (Array.isArray(node)) {
+            for (const item of node) walk(item, depth + 1)
+            return
+        }
+
+        if (isArticleShape(node)) {
+            candidates.push(node)
+            return
+        }
+
+        for (const value of Object.values(node)) {
+            if (value && typeof value === 'object') {
+                walk(value, depth + 1)
+            }
+        }
+    }
+
+    walk(pageProps)
+    return candidates
 }
 
 const buildArticleLink = (article) => {
     const categorySlug = cleanText(article?.category?.slug)
-    const articleId = cleanText(article?.article_id)
+    const articleId = cleanText(article?.article_id || article?.id)
     const slug = cleanText(article?.slug)
     if (!articleId || !slug) return null
     if (categorySlug) {
@@ -126,7 +225,7 @@ const normalizeArticle = (article) => {
     if (!article || typeof article !== 'object') return null
     const title = cleanText(article.title)
     const link = buildArticleLink(article)
-    const image = cleanText(article.image || article.cover)
+    const image = cleanText(extractArticleImage(article))
     if (!title || !link) return null
 
     return {
@@ -161,10 +260,12 @@ const fetchHomeItems = async () => {
             ...(Array.isArray(pageProps.popularNews) ? pageProps.popularNews : [])
         ]
 
+        const combinedCandidates = [...buckets, ...collectArticleCandidates(pageProps)]
+
         const items = []
         const seen = new Set()
 
-        for (const rawArticle of buckets) {
+        for (const rawArticle of combinedCandidates) {
             const article = normalizeArticle(rawArticle)
             if (!article) continue
             if (seen.has(article.articleId)) continue
@@ -239,17 +340,14 @@ export default {
 
             console.log(`[JAWAPOS DEBUG] items=${items.length} firstImage=${firstImage ? 'yes' : 'no'}`)
 
-            if (!items.length) {
-                await react('❌')
-                return sock.sendMessage(jid, { text: '⚠️ Tidak ada berita ditemukan dari Jawa Pos News.' }, { quoted: msg })
-            }
-
-            if (!firstImage) {
-                await react('❌')
-                return sock.sendMessage(jid, { text: '❌ Jawa Pos News: Tidak ada gambar valid yang bisa diambil untuk ditampilkan.' }, { quoted: msg })
-            }
-
             const caption = `\`\`\`${items.map((item, index) => formatItem(item, index)).join('\n\n')}\`\`\``
+            if (!firstImage) {
+                await sock.sendMessage(jid, { text: `📰 Jawa Pos News\n\n${caption}` }, { quoted: msg })
+                useLimit()
+                await react('✅')
+                return
+            }
+
             await sock.sendMessage(jid, { image: firstImage, caption }, { quoted: msg })
             useLimit()
             await react('✅')
