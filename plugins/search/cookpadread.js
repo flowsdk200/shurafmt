@@ -316,7 +316,7 @@ const buildHeader = (recipe) => {
 
 const buildBody = (recipe) => {
     const descriptionBlock = recipe.description && recipe.description !== '-'
-        ? `Deskripsi:\n${recipe.description}\n\n`
+        ? `\n${recipe.description}\n\n`
         : ''
     const keywordsBlock = recipe.keywords.length
         ? `Keyword: ${recipe.keywords.slice(0, 8).join(', ')}\n\n`
@@ -332,9 +332,9 @@ const buildBody = (recipe) => {
         : ''
 
     return (
-        `${descriptionBlock}${keywordsBlock}` +
-        `Bahan:\n${ingredientsBlock}\n\n` +
-        `Cara Membuat:\n${stepsBlock}${tipsBlock}`
+        `${descriptionBlock}` +
+        `\`Bahan:\`\n${ingredientsBlock}\n\n` +
+        `\`Cara membuat:\`\n${stepsBlock}${tipsBlock}`
     ).trim()
 }
 
