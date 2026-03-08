@@ -201,12 +201,13 @@ class GroupDatabase {
             .sort((a, b) => b.count - a.count || a.jid.localeCompare(b.jid))
     }
 
-    setStoreOrder(jid, userJid, product) {
+    setStoreOrder(jid, userJid, product, price = null) {
         const group = this.getGroup(jid)
         const storeOrders = this._ensureStoreOrders(group)
         const normalized = normalizeJid(userJid) || userJid
         storeOrders[normalized] = {
             product: String(product || '').trim(),
+            price: Number.isFinite(Number(price)) ? Number(price) : null,
             createdAt: new Date().toISOString()
         }
         this._persistGroup(jid)

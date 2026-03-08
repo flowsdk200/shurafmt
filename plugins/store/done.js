@@ -17,6 +17,11 @@ const formatWaktu = (date = new Date()) => `${date.toLocaleTimeString('id-ID', {
 
 const row = (label, value) => ` • ${label.padEnd(7, ' ')} : ${value}`
 
+const formatRupiah = (value) => `Rp${new Intl.NumberFormat('id-ID', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0
+}).format(Number(value) || 0)}`
+
 export default {
     name: 'done',
     aliases: ['d'],
@@ -50,11 +55,14 @@ export default {
         useLimit()
 
         const now = new Date()
-        const detail =
-            `${row('Produk', order.product)}\n` +
-            `${row('Pemesan', `@${targetJid.split('@')[0]}`)}\n` +
-            `${row('Tanggal', formatTanggal(now))}\n` +
-            `${row('Waktu', formatWaktu(now))}`
+        const detailRows = [
+            row('Produk', order.product),
+            ...(Number.isFinite(Number(order.price)) && Number(order.price) > 0 ? [row('Harga', formatRupiah(order.price))] : []),
+            row('Pemesan', `@${targetJid.split('@')[0]}`),
+            row('Tanggal', formatTanggal(now)),
+            row('Waktu', formatWaktu(now))
+        ]
+        const detail = detailRows.join('\n')
         return sock.sendMessage(jid, {
             text:
                 `✅ TRANSAKSI BERHASIL!\n\n` +
