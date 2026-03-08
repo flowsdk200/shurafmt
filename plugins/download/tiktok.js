@@ -57,18 +57,17 @@ const formatCaption = ({ type = 'media', title = '-', author = {}, stats = {}, d
         'downloads'
     ])))
     const dur = duration ? fmtDur(duration) : '-'
-    const durationLine = type === 'photo' ? '' : `× Duration: ${dur}\n`
+    const durationLine = type === 'photo' ? '' : `\`\`\`• Duration: ${dur}\`\`\`\n`
 
     return (
-        `\`\`\`✅ TIKTOK ${type.toUpperCase()}\n\n` +
-        `× Title: ${String(title || '-').trim() || '-'}\n` +
+        `\`Author: ${authorLine}\`\n\n` +
+        `${String(title || '-').trim() || '-'}\n\n` +
         durationLine +
-        `× Author: ${authorLine}\n` +
-        `× Likes: ${likes}\n` +
-        `× Comments: ${comments}\n` +
-        `× Views: ${views}\n` +
-        `× Shares: ${shares}\n` +
-        `× Saved: ${saved}\`\`\``
+        `\`\`\`• Likes: ${likes}\n` +
+        `• Comments: ${comments}\n` +
+        `• Views: ${views}\n` +
+        `• Shares: ${shares}\n` +
+        `• Saved: ${saved}\`\`\``
     )
 }
 
