@@ -308,9 +308,7 @@ const buildHeader = (recipe) => {
     return (
         `${recipe.title}\n\n` +
         `\`\`\`• Author: ${recipe.author}\n` +
-        `• Porsi: ${recipe.yieldText}\n` +
-        `${recipe.publishedAt ? `• Publish: ${recipe.publishedAt}\n` : ''}` +
-        `• Link: ${recipe.url}\`\`\``
+        `• Porsi: ${recipe.yieldText}\`\`\``
     )
 }
 
