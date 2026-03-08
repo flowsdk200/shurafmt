@@ -92,7 +92,7 @@ export default {
 
         if (!mediaType || !mediaContent) {
             return sock.sendMessage(jid, {
-                text: `❌ Kirim/reply media atau file dulu.`
+                text: `Kirim/reply media atau file dengan caption ${prefix + command}`
             }, { quoted: msg })
         }
 
@@ -111,7 +111,7 @@ export default {
                     `\`\`\`✅ Upload successful\n\n` +
                     `× Type: ${mimetype}\n` +
                     `× Size: ${formatSize(buffer.length)}\n` +
-                    `× URL: ${url}\`\`\``
+                    `× Link: ${url}\`\`\``
             }, { quoted: msg })
         } catch (err) {
             await react('❌')

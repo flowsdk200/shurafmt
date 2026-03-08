@@ -13,7 +13,7 @@ export default {
     name: 'sticker',
     aliases: ['s', 'stiker'],
     description: 'Buat sticker dari gambar atau video',
-    execute: async ({ sock, msg, text, config, isQuoted, quotedMsg, quotedType, react, useLimit }) => {
+    execute: async ({ sock, msg, text, config, isQuoted, quotedMsg, quotedType, react, prefix, command, useLimit }) => {
         const jid = msg.key.remoteJid
 
         /** Parse optional: !sticker PackName | Author **/
@@ -39,7 +39,7 @@ export default {
 
         if (!mediaContent || !mediaType) {
             return sock.sendMessage(jid, {
-                text: '❌ Kirim atau reply gambar/video untuk dibuat sticker.'
+                text: `Kirim/reply gambar/video dengan caption ${prefix + command}`
             }, { quoted: msg })
         }
 
