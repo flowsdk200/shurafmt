@@ -35,11 +35,11 @@ export default {
             }
 
             const lines = results.map((item, i) => (
-                `\`\`\`${i + 1}. ${item.title}\n` +
+                `${i + 1}. ${item.title}\n` +
                 `× Channel: ${item.channel}\n` +
                 `× Duration: ${item.duration}\n` +
                 `× Views: ${fmtViews(item.views)}\n` +
-                `× Link: ${item.url}\`\`\``
+                `× Link: ${item.url}`
             ))
 
             const firstThumb = results[0]?.thumbnail || results[0]?.thumbnailHD || ''
