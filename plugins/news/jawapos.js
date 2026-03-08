@@ -1,10 +1,12 @@
 import axios from 'axios'
-import { load } from 'cheerio'
 
 const SOURCE_URL = 'https://www.jawapos.com/'
+const SOURCE_CANDIDATES = [
+    'https://api.jawapos.com/',
+    'https://www.jawapos.com/'
+]
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
 const MAX_RESULTS = 15
-const MAX_CANDIDATES = 60
 const HTML_HEADERS = {
     'User-Agent': USER_AGENT,
     'Accept-Language': 'id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7',
@@ -44,8 +46,6 @@ const toAbsoluteUrl = (href, baseUrl = SOURCE_URL) => {
         return null
     }
 }
-
-const ARTICLE_RE = /^https?:\/\/(?:www\.)?jawapos\.com\/[^/]+\/\d{10}\/[^/?#]+/i
 
 const fetchHtml = async (url) => {
     try {
@@ -101,68 +101,83 @@ const fetchHtml = async (url) => {
     return { html: '', transport: 'none', status: 0 }
 }
 
-const fetchHomeLinks = async () => {
-    const response = await fetchHtml(SOURCE_URL)
-    if (response.status !== 200 || !response.html.trim()) {
-        throw new Error(`Homepage kosong atau merespon status ${response.status || '-'}.`)
+const extractNextData = (html) => {
+    const match = String(html || '').match(/<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/i)
+    if (!match?.[1]) return null
+    try {
+        return JSON.parse(match[1])
+    } catch {
+        return null
     }
-
-    console.log(`[JAWAPOS DEBUG] home transport=${response.transport} status=${response.status} url=${SOURCE_URL} bytes=${response.html.length}`)
-
-    const $ = load(response.html)
-    const links = []
-
-    $('a[href]').each((_, node) => {
-        const href = $(node).attr('href') || ''
-        const abs = toAbsoluteUrl(href, SOURCE_URL)
-        if (!abs) return
-        if (!ARTICLE_RE.test(abs)) return
-        links.push(abs)
-    })
-
-    const uniqueLinks = [...new Set(links)].slice(0, MAX_CANDIDATES)
-    console.log(`[JAWAPOS DEBUG] home links=${uniqueLinks.length}`)
-    return uniqueLinks
 }
 
-const fetchArticleMeta = async (url) => {
-    const response = await fetchHtml(url)
-    console.log(`[JAWAPOS DEBUG] article transport=${response.transport} status=${response.status} url=${url}`)
-    if (response.status !== 200 || !response.html.trim()) return null
+const buildArticleLink = (article) => {
+    const categorySlug = cleanText(article?.category?.slug)
+    const articleId = cleanText(article?.article_id)
+    const slug = cleanText(article?.slug)
+    if (!articleId || !slug) return null
+    if (categorySlug) {
+        return `https://www.jawapos.com/${categorySlug}/${articleId}/${slug}`
+    }
+    return `https://www.jawapos.com/${articleId}/${slug}`
+}
 
-    const html = response.html
-    const getMeta = (name) => cleanText(
-        html.match(new RegExp(`<meta[^>]+(?:property|name)=["']${name}["'][^>]+content=["']([^"']+)`, 'i'))?.[1] || ''
-    )
+const normalizeArticle = (article) => {
+    if (!article || typeof article !== 'object') return null
+    const title = cleanText(article.title)
+    const link = buildArticleLink(article)
+    const image = cleanText(article.image || article.cover)
+    if (!title || !link) return null
 
-    const title = cleanText(
-        html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)/i)?.[1] ||
-        html.match(/<title[^>]*>([^<]+)/i)?.[1] ||
-        ''
-    )
-
-    const description = getMeta('description') || getMeta('og:description')
-    const image = getMeta('og:image') || getMeta('twitter:image')
-    const pubDate = cleanText(
-        html.match(/<meta[^>]+(?:property|name)=["']article:published_time["'][^>]+content=["']([^"']+)/i)?.[1] ||
-        html.match(/<meta[^>]+(?:property|name)=["']article:modified_time["'][^>]+content=["']([^"']+)/i)?.[1] ||
-        html.match(/["']datePublished["']\s*:\s*["']([^"']+)/i)?.[1] ||
-        html.match(/["']dateModified["']\s*:\s*["']([^"']+)/i)?.[1] ||
-        html.match(/["']published_date["']\s*:\s*["']([^"']+)/i)?.[1] ||
-        html.match(/(\d{2}\s+[A-Za-zÀ-ÿ]+\s+\d{4},\s+\d{2}\.\d{2}\s+WIB)/i)?.[1] ||
-        ''
-    )
-
-    const result = title ? {
+    return {
+        articleId: cleanText(article.article_id || article.id || link),
         title,
-        link: url,
-        pubDate,
-        description: description || '-',
+        link,
+        pubDate: cleanText(article.published_at),
+        description: cleanText(article.description) || '-',
         image
-    } : null
+    }
+}
 
-    console.log(`[JAWAPOS DEBUG] article parsed title=${title ? 'yes' : 'no'} image=${image ? 'yes' : 'no'} date=${pubDate ? 'yes' : 'no'} url=${url}`)
-    return result
+const fetchHomeItems = async () => {
+    for (const sourceUrl of SOURCE_CANDIDATES) {
+        const response = await fetchHtml(sourceUrl)
+        console.log(`[JAWAPOS DEBUG] home transport=${response.transport} status=${response.status} url=${sourceUrl} bytes=${response.html.length}`)
+        if (response.status !== 200 || !response.html.trim()) continue
+
+        const nextData = extractNextData(response.html)
+        if (!nextData?.props?.pageProps) {
+            console.log(`[JAWAPOS DEBUG] nextdata missing url=${sourceUrl}`)
+            continue
+        }
+
+        const pageProps = nextData.props.pageProps
+        const buckets = [
+            ...(Array.isArray(pageProps.headlines) ? pageProps.headlines.map((item) => item?.article) : []),
+            ...(Array.isArray(pageProps.editorChoice) ? pageProps.editorChoice.map((item) => item?.article) : []),
+            ...(Array.isArray(pageProps.latestNewsLarge) ? pageProps.latestNewsLarge : []),
+            ...(Array.isArray(pageProps.latestNewsSmall) ? pageProps.latestNewsSmall : []),
+            ...(Array.isArray(pageProps.latestNews) ? pageProps.latestNews : []),
+            ...(Array.isArray(pageProps.popularNews) ? pageProps.popularNews : [])
+        ]
+
+        const items = []
+        const seen = new Set()
+
+        for (const rawArticle of buckets) {
+            const article = normalizeArticle(rawArticle)
+            if (!article) continue
+            if (seen.has(article.articleId)) continue
+            seen.add(article.articleId)
+            items.push(article)
+            if (items.length >= MAX_RESULTS) break
+        }
+
+        console.log(`[JAWAPOS DEBUG] nextdata items=${items.length} source=${sourceUrl}`)
+        if (items.length) return items
+    }
+
+    return []
 }
 
 const fetchImageBuffer = async (url) => {
@@ -208,25 +223,18 @@ export default {
         await react('⏳')
 
         try {
-            const links = await fetchHomeLinks()
-            if (!links.length) {
+            const items = await fetchHomeItems()
+            if (!items.length) {
                 await react('❌')
                 return sock.sendMessage(jid, { text: '⚠️ Tidak ada berita ditemukan dari Jawa Pos News.' }, { quoted: msg })
             }
 
             let firstImage = null
-            const items = []
-
-            for (const link of links) {
-                if (items.length >= MAX_RESULTS) break
-                const meta = await fetchArticleMeta(link)
-                if (!meta) continue
-
-                if (!firstImage && meta.image) {
-                    firstImage = await fetchImageBuffer(meta.image)
+            for (const item of items) {
+                if (!firstImage && item.image) {
+                    firstImage = await fetchImageBuffer(item.image)
+                    if (firstImage) break
                 }
-
-                items.push(meta)
             }
 
             console.log(`[JAWAPOS DEBUG] items=${items.length} firstImage=${firstImage ? 'yes' : 'no'}`)
