@@ -110,6 +110,32 @@ const fetchRecipeHtml = async (url) => {
     return html
 }
 
+const fetchImageBuffer = async (url) => {
+    const target = toAbsoluteUrl(url)
+    if (!target) return null
+
+    const response = await axios.get(target, {
+        timeout: REQUEST_TIMEOUT,
+        maxRedirects: 8,
+        responseType: 'arraybuffer',
+        validateStatus: () => true,
+        headers: {
+            'User-Agent': USER_AGENT,
+            'Accept-Language': 'id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7',
+            Accept: 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+            Referer: BASE_URL
+        }
+    })
+
+    if (response.status >= 400) return null
+
+    const contentType = String(response.headers?.['content-type'] || '').toLowerCase()
+    if (contentType && !contentType.startsWith('image/')) return null
+
+    const buffer = Buffer.from(response.data || [])
+    return buffer.length ? buffer : null
+}
+
 const normalizeJsonPayload = (payload) => {
     if (!payload) return []
     if (Array.isArray(payload)) return payload
@@ -320,10 +346,11 @@ export default {
             const recipe = parseRecipePage(html, recipeUrl)
             const header = buildHeader(recipe)
             const bodyChunks = splitToChunks(buildBody(recipe))
+            const imageBuffer = recipe.image ? await fetchImageBuffer(recipe.image).catch(() => null) : null
 
-            if (recipe.image) {
+            if (imageBuffer) {
                 await sock.sendMessage(jid, {
-                    image: { url: recipe.image },
+                    image: imageBuffer,
                     caption: header
                 }, { quoted: msg })
             } else {
