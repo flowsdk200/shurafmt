@@ -83,6 +83,76 @@ const fetchBuffer = async (url) => {
     return Buffer.from(data)
 }
 
+const isMissingValue = (value) => (
+    value === undefined ||
+    value === null ||
+    value === '' ||
+    value === '?'
+)
+
+const shouldBackfillMetadata = (result = {}) => {
+    const authorUsername = result?.author?.username
+    const stats = result?.stats || {}
+    const duration = result?.type === 'video'
+        ? (result?.video?.duration || result?.duration || result?.music?.duration)
+        : undefined
+
+    return (
+        isMissingValue(authorUsername) ||
+        isMissingValue(pickStat(stats, ['likes', 'like_count', 'digg_count'])) ||
+        isMissingValue(pickStat(stats, ['comments', 'comment_count'])) ||
+        isMissingValue(pickStat(stats, ['plays', 'play_count', 'views', 'view_count'])) ||
+        isMissingValue(pickStat(stats, ['shares', 'share_count', 'shareCount'])) ||
+        isMissingValue(pickStat(stats, [
+            'saves',
+            'saved',
+            'collect_count',
+            'collectCount',
+            'collects',
+            'collects_count',
+            'saved_count',
+            'save_count',
+            'download_count',
+            'downloadCount',
+            'downloads'
+        ])) ||
+        (result?.type === 'video' && isMissingValue(duration))
+    )
+}
+
+const mergePreferred = (primary = {}, fallback = {}) => {
+    const mergedStats = {
+        ...(fallback.stats || {}),
+        ...(primary.stats || {})
+    }
+
+    const mergedAuthor = {
+        ...(fallback.author || {}),
+        ...(primary.author || {})
+    }
+
+    const mergedMusic = {
+        ...(fallback.music || {}),
+        ...(primary.music || {})
+    }
+
+    const mergedVideo = {
+        ...(fallback.video || {}),
+        ...(primary.video || {})
+    }
+
+    return {
+        ...fallback,
+        ...primary,
+        description: primary.description || fallback.description || '',
+        createTime: primary.createTime || fallback.createTime || '',
+        author: Object.fromEntries(Object.entries(mergedAuthor).filter(([, v]) => !isMissingValue(v))),
+        music: Object.fromEntries(Object.entries(mergedMusic).filter(([, v]) => !isMissingValue(v))),
+        video: Object.fromEntries(Object.entries(mergedVideo).filter(([, v]) => !isMissingValue(v))),
+        stats: Object.fromEntries(Object.entries(mergedStats).filter(([, v]) => !isMissingValue(v)))
+    }
+}
+
 export default {
     name: 'tiktok',
     aliases: ['tt', 'tiktokdl', 'ttslide', 'tiktokslide', 'tiktoksearch', 'ttsearch'],
@@ -121,6 +191,13 @@ export default {
                     result = await tiktok3(url)
                 } catch {
                     result = await tiktok2(url)
+                }
+
+                if (shouldBackfillMetadata(result)) {
+                    try {
+                        const fallbackMeta = await tiktok2(url)
+                        result = mergePreferred(result, fallbackMeta)
+                    } catch {}
                 }
 
                 if (result.type === 'photo') {
