@@ -31,9 +31,8 @@ export default {
                 ? expiry.toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })
                 : 'Permanent'
             const remaining = expiry ? timeRemaining(expiry) : 'Permanent'
-            const name = (u.name || 'user').trim()
             const mentionTag = `@${u.jid.split('@')[0]}`
-            return ` ${i + 1}. ${name}\n Exp: ${expiryStr} (sisa: ${remaining})`
+            return ` ${i + 1}. ${mentionTag}\n × Exp: ${expiryStr}\n × Sisa: ${remaining}`
         }).join('\n\n')
 
         useLimit()
