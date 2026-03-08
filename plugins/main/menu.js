@@ -16,8 +16,6 @@ export const MENU = {
     Store: ['bagi', 'diskon', 'done', 'kali', 'kurang', 'persen', 'proses', 'tambah', 'total'],
 }
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
-
 const resizePP = async (buf, size = 200) => {
     const img = await Jimp.fromBuffer(buf)
     img.resize({ w: size, h: size })
@@ -77,7 +75,7 @@ export default {
                 .map(([kategori, cmds]) => `\`\`\`${kategori} (${cmds.length})\`\`\`\n\`\`\`${cmds.map((c) => `❖ ${p}${c}`).join('\n')}\`\`\``)
                 .join('\n\n')
 
-            const caption =
+            const shura =
                     `\`\`\`Users\`\`\`\n` +
                     `\`\`\`❖ Name: ${String(pushName || 'user')}\n` +
                     `❖ ID: @${senderNum}\n` +
@@ -90,18 +88,33 @@ export default {
                         `❖ Uptime: ${getUptime(os.uptime())}\`\`\`\n\n\n` +
                         `${menuText}`
 
-            const mentionedJid = ownerJid ? [sender, ownerJid] : [sender]
-            await sleep(5000)
-            await sock.sendMessage(jid, {
+            const buttonflows = {
                 document: ppBuffer,
                 mimetype: 'image/png',
-                fileName: `${pushName}`,
+                fileName: `${pushName.toLowerCase()}`,
                 fileLength: 999999,
                 pageCount: 0,
                 jpegThumbnail: ppBuffer,
-                caption,
+                caption: shura,
+                footer: `© ${config.botName}`,
+                media: true,
+                interactiveButtons: [{
+                    name: 'cta_url',
+                    buttonParamsJson: JSON.stringify({
+                        display_text: 'DEVELOPER',
+                        url: 'https://wa.me/6285226344606',
+                        merchant_url: 'https://wa.me/6285226344606'
+                    })
+                }, {
+                    name: 'cta_url',
+                    buttonParamsJson: JSON.stringify({
+                        display_text: 'SCRIPT',
+                        url: 'https://whatsapp.com/channel/0029Vb8IWc3FSAsy4xaX991n',
+                        merchant_url: 'https://whatsapp.com/channel/0029Vb8IWc3FSAsy4xaX991n'
+                    })
+                }],
                 contextInfo: {
-                    mentionedJid,
+                    mentionedJid: [ownerJid, sender].filter(Boolean),
                     forwardingScore: 999,
                     isForwarded: true,
                     forwardedNewsletterMessageInfo: {
@@ -118,11 +131,12 @@ export default {
                     },
                 },
                 viewOnce: true,
-            }, { quoted: msg })
+            }
 
+            await sock.sendMessage(msg.key.remoteJid, buttonflows, { userJid: sender, quoted: msg })
             await react('✅')
-        } catch {
-            await react('❌')
+        } catch (error) {
+            console.error('Error sending menu:', error)
             await sock.sendMessage(msg.key.remoteJid, {
                 text: 'Terjadi error saat mengirim menu, coba lagi nanti.',
             }, { quoted: msg })

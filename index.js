@@ -203,11 +203,9 @@ async function connectToWhatsApp() {
                 .filter((x) => x?.key?.id && !x.key.fromMe && x.key.remoteJid !== 'status@broadcast')
                 .map((x) => x.key)
             if (readKeys.length) {
-                try {
-                    await sock.readMessages(readKeys)
-                } catch (err) {
+                void sock.readMessages(readKeys).catch((err) => {
                     logger.warn(`Auto-read failed: ${err.message}`)
-                }
+                })
             }
         }
         void handleMessage(sock, m).catch((err) => {
