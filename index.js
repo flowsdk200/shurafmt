@@ -208,10 +208,17 @@ async function connectToWhatsApp() {
                 })
             }
         }
-        void handleMessage(sock, m).catch((err) => {
-            logger.error(`Handle message failed: ${err.message}`)
-            notifyOwnersError('message-handler', err, `remoteJid=${m?.messages?.[0]?.key?.remoteJid || '-'}`)
-        })
+
+        const messages = Array.isArray(m?.messages) ? m.messages : []
+        for (const single of messages) {
+            void handleMessage(sock, {
+                ...m,
+                messages: [single]
+            }).catch((err) => {
+                logger.error(`Handle message failed: ${err.message}`)
+                notifyOwnersError('message-handler', err, `remoteJid=${single?.key?.remoteJid || '-'}`)
+            })
+        }
     })
 }
 

@@ -151,7 +151,8 @@ export default {
             ? pickQuotedText(quotedMsg, quotedType)
             : ''
         const directText = textParts.join(' ').trim()
-        const responseText = quotedText || directText
+        const pipedText = String(captionParts.join('|') || '').trim()
+        const responseText = quotedText || directText || pipedText
 
         if (!responseText) {
             await react('❌')

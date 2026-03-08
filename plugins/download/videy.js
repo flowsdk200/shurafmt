@@ -136,7 +136,7 @@ export default {
             return sock.sendMessage(jid, {
                 text:
                     `Contoh penggunaan:\n` +
-                    `- ${prefix + command} https://videy.co/v/?id=h55lkSfb1`
+                    `- ${prefix + command} https://videy.co/v/?id=vwJvwPim1`
             }, { quoted: msg })
         }
 
