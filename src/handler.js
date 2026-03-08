@@ -14,7 +14,6 @@ import { getWpreadSession } from './utils/wpreadSession.js'
 import { getWebtoonsReadSession } from './utils/webtoonsReadSession.js'
 import { getMangatoonReadSession } from './utils/mangatoonReadSession.js'
 
-const messageIdCache = new NodeCache({ stdTTL: 5 * 60, useClones: false })
 const antispamCache = new NodeCache({ stdTTL: 15, useClones: false })
 const antispamWarnCache = new NodeCache({ stdTTL: 5, useClones: false })
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -106,10 +105,6 @@ export const handleMessage = async (sock, m) => {
             const botNum = sock.user?.id?.split(':')[0]
             if (!config.ownerNumbers.includes(botNum)) return
         }
-
-        /** Deduplicate messages to prevent double processing/logging **/
-        if (messageIdCache.has(msg.key.id)) return
-        messageIdCache.set(msg.key.id, true)
 
         /** Extract message type — skip metadata-only keys bawaan WA.
          *  Juga unwrap wrapper types (viewOnce, ephemeral, documentWithCaption, edited)
