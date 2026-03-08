@@ -61,7 +61,7 @@ const formatCaption = ({ type = 'media', title = '-', author = {}, stats = {}, d
 
     return (
         `\`\`\`✅ TIKTOK ${type.toUpperCase()}\n\n` +
-        `× Title: ${String(title || '-').trim().slice(0, 80) || '-'}\n` +
+        `× Title: ${String(title || '-').trim() || '-'}\n` +
         durationLine +
         `× Author: ${authorLine}\n` +
         `× Likes: ${likes}\n` +
