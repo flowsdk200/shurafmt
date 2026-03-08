@@ -228,9 +228,9 @@ export default {
                 let result
                 let fallbackMeta = null
                 try {
-                    result = await tiktok3(url)
-                } catch {
                     result = await tiktok2(url)
+                } catch {
+                    result = await tiktok3(url)
                 }
 
                 if (shouldBackfillMetadata(result)) {
