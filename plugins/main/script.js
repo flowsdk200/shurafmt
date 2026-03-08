@@ -18,7 +18,8 @@ export default {
                 `\`\`\`• Base: biohazard botz\`\`\`\n` +
                 `\`\`\`• Dev: @yemo-dev\`\`\`\n` +
                 `\`\`\`• Type: ESM\`\`\`\n` +
-                `\`\`\`• Db: MongoDB\`\`\`\n` +
+                `\`\`\`• Language: JavaScript\`\`\`\n` +
+                `\`\`\`• Db: MongoDB + Redis\`\`\`\n` +
                 `\`\`\`• Link: ${config.scriptUrl}\`\`\``
 
             const extendedTextMessage = proto.Message.ExtendedTextMessage.fromObject({

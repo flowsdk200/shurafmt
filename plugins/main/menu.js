@@ -22,6 +22,8 @@ const resizePP = async (buf, size = 200) => {
     return img.getBuffer('image/jpeg')
 }
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
 const styles = (text) => `\`\`\`${text}\`\`\``
 
 const getPP = async (sock, sender, thumb) => {
@@ -132,6 +134,7 @@ export default {
                 },
                 viewOnce: true,
             }
+            await sleep(3000)
             await sock.sendMessage(msg.key.remoteJid, buttonflows, { userJid: sender, quoted: msg })
             await react('✅')
         } catch (error) {
