@@ -53,6 +53,27 @@ const extractSizeText = (value) => {
     return clean(match?.[1] || '')
 }
 
+const normalizeDisplaySizeText = (value) => {
+    const text = clean(value)
+    if (!text) return '-'
+
+    const match = text.match(/^([0-9]+(?:[.,][0-9]+)?)\s*(B|KB|MB|GB|TB)$/i)
+    if (!match) return text
+
+    const amount = Number(match[1].replace(',', '.'))
+    const unit = String(match[2] || '').toUpperCase()
+    if (!Number.isFinite(amount) || amount <= 0) return text
+
+    const units = ['B', 'KB', 'MB', 'GB', 'TB']
+    const idx = units.indexOf(unit)
+    if (idx < 0) return text
+
+    let bytes = amount
+    for (let i = 0; i < idx; i += 1) bytes *= 1024
+
+    return formatBytes(bytes)
+}
+
 const parseSetCookies = (setCookie) => {
     const cookieMap = {}
     const rows = Array.isArray(setCookie) ? setCookie : []
@@ -255,17 +276,18 @@ const formatBytes = (bytes) => {
     const units = ['B', 'KB', 'MB', 'GB']
     let size = n
     let idx = 0
-    while (size >= 1024 && idx < units.length - 1) {
-        size /= 1024
+    while (size >= 1000 && idx < units.length - 1) {
+        size /= 1000
         idx += 1
     }
-    const fixed = size >= 100 ? 0 : size >= 10 ? 1 : 2
+    const fixed = size >= 100 ? 0 : size >= 10 ? 0 : 2
     return `${size.toFixed(fixed).replace(/\.0+$/, '')} ${units[idx]}`
 }
 
 const buildCaption = ({ title, fileName, size, mime }) => (
     `❖ Name: ${fileName}\n` +
-    `❖ Size: ${size}`
+    `❖ Size: ${size}\n` +
+    `❖ Mime: ${mime || '-'}`
 )
 
 export default {
@@ -290,7 +312,7 @@ export default {
             const caption = buildCaption({
                 title: resolved.title,
                 fileName: meta.fileName,
-                size: formatBytes(meta.bytes) === '-' ? (resolved.sizeText || '-') : formatBytes(meta.bytes),
+                size: formatBytes(meta.bytes) === '-' ? normalizeDisplaySizeText(resolved.sizeText || '-') : formatBytes(meta.bytes),
                 mime: meta.mime
             })
 
