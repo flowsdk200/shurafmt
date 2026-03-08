@@ -211,13 +211,15 @@ async function connectToWhatsApp() {
 
         const messages = Array.isArray(m?.messages) ? m.messages : []
         for (const single of messages) {
-            void handleMessage(sock, {
-                ...m,
-                messages: [single]
-            }).catch((err) => {
+            try {
+                await handleMessage(sock, {
+                    ...m,
+                    messages: [single]
+                })
+            } catch (err) {
                 logger.error(`Handle message failed: ${err.message}`)
                 notifyOwnersError('message-handler', err, `remoteJid=${single?.key?.remoteJid || '-'}`)
-            })
+            }
         }
     })
 }

@@ -99,7 +99,7 @@ export const handleMessage = async (sock, m) => {
             }
         }
 
-        if (!isNewsletterMsg && m.type !== 'notify') return
+        if (!isNewsletterMsg && m.type === 'append') return
 
         /** Izinkan fromMe hanya jika nomor bot adalah owner (kirim command dari device bot sendiri) **/
         if (msg.key.fromMe) {
@@ -526,7 +526,11 @@ export const handleMessage = async (sock, m) => {
             groupsDb.recordMessage(msg.key.remoteJid, groupMetadata?.subject || '', groupMetadata)
         }
 
-        const react = (emoji) => sock.sendMessage(msg.key.remoteJid, { react: { text: emoji, key: msg.key } })
+        const react = async (emoji) => {
+            void sock.sendMessage(msg.key.remoteJid, {
+                react: { text: emoji, key: msg.key }
+            }).catch(() => {})
+        }
 
         /** Catat SEMUA pesan user (termasuk media tanpa caption) + auto-register **/
         const user = usersDb.recordMessage(sender, pushName)

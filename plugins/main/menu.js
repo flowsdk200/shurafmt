@@ -16,8 +16,6 @@ export const MENU = {
     Store: ['bagi', 'diskon', 'done', 'kali', 'kurang', 'persen', 'proses', 'tambah', 'total'],
 }
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
-
 const resizePP = async (buf, size = 200) => {
     const img = await Jimp.fromBuffer(buf)
     img.resize({ w: size, h: size })
@@ -134,7 +132,6 @@ export default {
                 },
                 viewOnce: true,
             }
-            await sleep(3000)
             await sock.sendMessage(msg.key.remoteJid, buttonflows, { userJid: sender, quoted: msg })
             await react('✅')
         } catch (error) {
