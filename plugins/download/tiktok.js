@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { tiktok2, searchTikTok } from '../../scrape/tiktok.js'
+import { tiktok2, tiktok3, searchTikTok } from '../../scrape/tiktok.js'
 
 const TIKTOK_REGEX = /https?:\/\/(vm\.|vt\.|www\.|m\.)?tiktok\.com\/[^\s]+/i
 
@@ -57,11 +57,12 @@ const formatCaption = ({ type = 'media', title = '-', author = {}, stats = {}, d
         'downloads'
     ])))
     const dur = duration ? fmtDur(duration) : '-'
+    const durationLine = type === 'photo' ? '' : `× Duration: ${dur}\n`
 
     return (
         `\`\`\`✅ TIKTOK ${type.toUpperCase()}\n\n` +
         `× Title: ${String(title || '-').trim().slice(0, 80) || '-'}\n` +
-        `× Duration: ${dur}\n` +
+        durationLine +
         `× Author: ${authorLine}\n` +
         `× Likes: ${likes}\n` +
         `× Comments: ${comments}\n` +
@@ -98,7 +99,7 @@ export default {
             }
 
             return sock.sendMessage(jid, {
-                text: `Contoh penggunaan:\n- ${prefix + command} https://vt.tiktok.com/ZSmKrAQ2r/`
+                text: `Contoh penggunaan:\n- ${prefix + command} https://vt.tiktok.com/ZSu2kwRCQ/`
             }, { quoted: msg })
         }
 
@@ -115,7 +116,12 @@ export default {
             await react('⏳')
 
             try {
-                const result = await tiktok2(url)
+                let result
+                try {
+                    result = await tiktok3(url)
+                } catch {
+                    result = await tiktok2(url)
+                }
 
                 if (result.type === 'photo') {
                     const { images, author, description, music, stats } = result
@@ -123,8 +129,7 @@ export default {
                         type: 'photo',
                         title: description,
                         author,
-                        stats,
-                        duration: result?.duration || result?.music?.duration
+                        stats
                     })
 
                     const mediaBuffers = await Promise.all(images.map((img) => fetchBuffer(img.url)))

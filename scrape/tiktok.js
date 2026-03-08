@@ -2,6 +2,7 @@ import axios from 'axios'
 import { CookieJar } from 'tough-cookie'
 import { wrapper } from 'axios-cookiejar-support'
 import { load } from 'cheerio'
+import vm from 'vm'
 
 const SEARCH_TIMEOUT = 30000
 const SEARCH_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36'
@@ -142,6 +143,376 @@ const tikwmApi = axios.create({
     timeout: TIKWM_TIMEOUT,
     headers: { 'User-Agent': TIKWM_USER_AGENT }
 })
+
+const SNAPTIK_BASE = 'https://snaptik.app/ID2'
+const SNAPTIK_POST_URL = 'https://snaptik.app/abc2.php'
+const SNAPTIK_TIMEOUT = 60000
+const SNAPTIK_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36'
+const TIKTOK_PAGE_USER_AGENT = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Mobile Safari/537.36'
+
+const decodeJsEscapes = (value) => String(value || '')
+    .replace(/\\"/g, '"')
+    .replace(/\\\//g, '/')
+    .replace(/\\\\/g, '\\')
+
+const parseSnapTikHtmlBlock = (decodedScript) => {
+    const m = String(decodedScript || '').match(/\$\("#download"\)\.innerHTML\s*=\s*"([\s\S]*?)";/)
+    if (!m?.[1]) return ''
+    return decodeJsEscapes(m[1])
+}
+
+const extractSnapTikDirectUrl = (decodedScript) => {
+    const m = String(decodedScript || '').match(/href=\\"(https:[^"]+?)\\" class=\\"button download-file/i)
+    return decodeJsEscapes(m?.[1] || '')
+}
+
+const extractSnapTikHdTokenUrl = (decodedScript) => {
+    const m = String(decodedScript || '').match(/data-tokenhd=\\"(https:[^"]+?)\\" data-backup=/i)
+    return decodeJsEscapes(m?.[1] || '')
+}
+
+const extractSnapTikThumbnailApi = (decodedScript) => {
+    const m = String(decodedScript || '').match(/getThumbnail\('([^']+)'\)/i)
+    return decodeJsEscapes(m?.[1] || '')
+}
+
+const decodeJwtPayload = (token) => {
+    const raw = String(token || '').trim()
+    if (!raw) return null
+    const parts = raw.split('.')
+    if (parts.length < 2) return null
+    try {
+        const base64 = parts[1]
+            .replace(/-/g, '+')
+            .replace(/_/g, '/')
+            .padEnd(Math.ceil(parts[1].length / 4) * 4, '=')
+        return JSON.parse(Buffer.from(base64, 'base64').toString('utf8'))
+    } catch {
+        return null
+    }
+}
+
+const decodeSnapTikScript = (rawScript) => {
+    let decoded = ''
+    const sandbox = {
+        eval: (code) => {
+            decoded = String(code || '')
+            return code
+        },
+        console,
+        decodeURIComponent,
+        escape
+    }
+    vm.createContext(sandbox)
+    vm.runInContext(String(rawScript || ''), sandbox, { timeout: 10000 })
+    return decoded
+}
+
+const extractTikTokJsonScript = (html, id) => {
+    const safeId = String(id || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const m = String(html || '').match(new RegExp(`<script id="${safeId}" type="application/json">([\\s\\S]*?)<\\/script>`))
+    if (!m?.[1]) return null
+    try {
+        return JSON.parse(m[1])
+    } catch {
+        return null
+    }
+}
+
+const extractTikTokItemStruct = (html) => {
+    const apiData = extractTikTokJsonScript(html, 'api-data')
+    const apiItem = apiData?.videoDetail?.itemInfo?.itemStruct
+    if (apiItem && typeof apiItem === 'object') {
+        return apiItem
+    }
+
+    const universal = extractTikTokJsonScript(html, '__UNIVERSAL_DATA_FOR_REHYDRATION__')
+    const universalItem = universal?.__DEFAULT_SCOPE__?.['webapp.video-detail']?.itemInfo?.itemStruct
+    if (universalItem && typeof universalItem === 'object') {
+        return universalItem
+    }
+
+    return null
+}
+
+const normalizeTikTokMetadata = (item) => {
+    if (!item || typeof item !== 'object') return null
+
+    const images = Array.isArray(item.imagePost?.images)
+        ? item.imagePost.images.map((entry, index) => ({
+            url: String(entry?.imageURL?.urlList?.[0] || '').trim(),
+            thumbnail: String(entry?.imageURL?.urlList?.[0] || '').trim(),
+            index: index + 1
+        })).filter((entry) => entry.url)
+        : []
+
+    return {
+        id: String(item.id || '').trim(),
+        description: String(item.desc || '').trim(),
+        createTime: item.createTime || '',
+        video: {
+            duration: Number(item.video?.duration || 0),
+            width: Number(item.video?.width || 0),
+            height: Number(item.video?.height || 0),
+            cover: String(item.video?.cover || item.video?.originCover || item.imagePost?.cover?.imageURL?.urlList?.[0] || '').trim()
+        },
+        music: {
+            id: String(item.music?.id || '').trim(),
+            title: String(item.music?.title || '').trim(),
+            author: String(item.music?.authorName || '').trim(),
+            duration: Number(item.music?.duration || 0),
+            cover: String(item.music?.coverLarge || item.music?.coverMedium || item.music?.coverThumb || '').trim(),
+            url: String(item.music?.playUrl || '').trim()
+        },
+        author: {
+            id: String(item.author?.id || '').trim(),
+            username: String(item.author?.uniqueId || '').trim(),
+            nickname: String(item.author?.nickname || '').trim(),
+            avatar: String(item.author?.avatarLarger || item.author?.avatarMedium || item.author?.avatarThumb || '').trim()
+        },
+        stats: {
+            likes: item.stats?.diggCount,
+            comments: item.stats?.commentCount,
+            shares: item.stats?.shareCount,
+            plays: item.stats?.playCount,
+            saves: item.stats?.collectCount
+        },
+        images
+    }
+}
+
+async function fetchTikTokMetadata(url) {
+    const response = await axios.get(url, {
+        timeout: SNAPTIK_TIMEOUT,
+        validateStatus: () => true,
+        headers: {
+            'User-Agent': TIKTOK_PAGE_USER_AGENT,
+            'Accept-Language': 'id-ID,id;q=0.9,en;q=0.8',
+            'Referer': 'https://www.tiktok.com/'
+        }
+    })
+
+    if (response.status !== 200) {
+        return null
+    }
+
+    return normalizeTikTokMetadata(extractTikTokItemStruct(String(response.data || '')))
+}
+
+async function resolveTikTokUrl(url) {
+    const input = String(url || '').trim()
+    if (!input) throw new Error('URL TikTok kosong')
+
+    try {
+        const parsed = new URL(input)
+        if (!/(^|\.)(vm|vt)\.tiktok\.com$/i.test(parsed.hostname)) {
+            if (/(^|\.)(www\.|m\.)?tiktok\.com$/i.test(parsed.hostname)) {
+                const cleanMatch = parsed.pathname.match(/^\/@[^/]+\/(video|photo)\/\d+/i)
+                if (cleanMatch?.[0]) {
+                    return `${parsed.origin}${cleanMatch[0]}`
+                }
+            }
+            return input
+        }
+    } catch {
+        return input
+    }
+
+    const response = await tikwmApi.get(input, {
+        maxRedirects: 10,
+        validateStatus: () => true,
+        headers: {
+            'User-Agent': TIKWM_USER_AGENT,
+            'Referer': 'https://www.tiktok.com/'
+        }
+    })
+
+    const finalUrl = String(response.request?.res?.responseUrl || response.config?.url || input).trim()
+    const match = finalUrl.match(/^https?:\/\/(www\.|m\.)?tiktok\.com\/@[^/]+\/(video|photo)\/\d+/i)
+    if (match?.[0]) return match[0]
+    return finalUrl || input
+}
+
+async function tiktok3(url) {
+    const inputUrl = await resolveTikTokUrl(url)
+    let pageMeta = null
+
+    try {
+        pageMeta = await fetchTikTokMetadata(inputUrl)
+    } catch {}
+
+    const page = await axios.get(SNAPTIK_BASE, {
+        timeout: SNAPTIK_TIMEOUT,
+        headers: { 'User-Agent': SNAPTIK_USER_AGENT },
+        validateStatus: () => true
+    })
+
+    if (page.status !== 200) {
+        throw new Error(`SnapTik HTTP ${page.status}`)
+    }
+
+    const $ = load(String(page.data || ''))
+    const token = $('input[name="token"]').attr('value') || ''
+    const lang = $('input[name="lang"]').attr('value') || 'ID2'
+    if (!token) throw new Error('Token SnapTik tidak ditemukan')
+
+    const body = new URLSearchParams({
+        url: inputUrl,
+        lang,
+        token
+    }).toString()
+
+    const response = await axios.post(SNAPTIK_POST_URL, body, {
+        timeout: SNAPTIK_TIMEOUT,
+        validateStatus: () => true,
+        headers: {
+            'User-Agent': SNAPTIK_USER_AGENT,
+            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+            'Origin': 'https://snaptik.app',
+            'Referer': SNAPTIK_BASE,
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+
+    if (response.status !== 200) {
+        throw new Error(`SnapTik download HTTP ${response.status}`)
+    }
+
+    const decoded = decodeSnapTikScript(String(response.data || ''))
+    if (!decoded) throw new Error('Gagal decode respons SnapTik')
+
+    const htmlBlock = parseSnapTikHtmlBlock(decoded)
+    const $$ = load(htmlBlock || '<div></div>')
+
+    const directUrl = extractSnapTikDirectUrl(decoded)
+    const tokenHdUrl = extractSnapTikHdTokenUrl(decoded)
+    const renderToken = $$('button.btn-render').attr('data-token') || ''
+    const renderPayload = decodeJwtPayload(renderToken)
+    let hdUrl = ''
+
+    if (tokenHdUrl) {
+        const hdResponse = await axios.get(tokenHdUrl, {
+            timeout: SNAPTIK_TIMEOUT,
+            validateStatus: () => true,
+            headers: {
+                'User-Agent': SNAPTIK_USER_AGENT,
+                'Referer': SNAPTIK_BASE
+            }
+        })
+        if (hdResponse.status === 200 && hdResponse.data && hdResponse.data.error === false && hdResponse.data.url) {
+            hdUrl = String(hdResponse.data.url).trim()
+        }
+    }
+
+    const slideLinks = $$('a[data-event="download_albumPhoto_photo"]').map((i, el) => {
+        const url = String($$(el).attr('href') || '').trim()
+        const thumb = String($$(el).closest('.photo').find('img').attr('src') || '').trim()
+        return {
+            url,
+            thumbnail: thumb,
+            index: i + 1
+        }
+    }).get().filter((item) => item.url)
+
+    const payloadImages = Array.isArray(renderPayload?.image_urls)
+        ? renderPayload.image_urls.map((url, i) => ({
+            url: String(url || '').trim(),
+            thumbnail: String(url || '').trim(),
+            index: i + 1
+        })).filter((item) => item.url)
+        : []
+
+    const photoImages = slideLinks.length ? slideLinks : payloadImages
+    if (photoImages.length) {
+        return {
+            type: 'photo',
+            images: pageMeta?.images?.length ? pageMeta.images : photoImages,
+            music: {
+                url: pageMeta?.music?.url || String(renderPayload?.audio_url || '').trim(),
+                id: pageMeta?.music?.id || String(renderPayload?.id || '').trim(),
+                title: pageMeta?.music?.title || '',
+                author: pageMeta?.music?.author || '',
+                duration: pageMeta?.music?.duration || 0,
+                cover: pageMeta?.music?.cover || pageMeta?.video?.cover || photoImages[0]?.thumbnail || ''
+            },
+            author: {
+                id: pageMeta?.author?.id || '',
+                username: pageMeta?.author?.username || '',
+                nickname: pageMeta?.author?.nickname || $$('div.info span').first().text().trim() || '',
+                avatar: pageMeta?.author?.avatar || pageMeta?.video?.cover || photoImages[0]?.thumbnail || ''
+            },
+            description: pageMeta?.description || $$('div.video-title').first().text().trim() || '',
+            createTime: pageMeta?.createTime || '',
+            stats: {
+                likes: pageMeta?.stats?.likes,
+                comments: pageMeta?.stats?.comments,
+                shares: pageMeta?.stats?.shares,
+                plays: pageMeta?.stats?.plays,
+                saves: pageMeta?.stats?.saves
+            }
+        }
+    }
+
+    const finalVideoUrl = hdUrl || directUrl
+    if (!finalVideoUrl) {
+        throw new Error('URL video SnapTik tidak ditemukan')
+    }
+
+    const thumbApi = extractSnapTikThumbnailApi(decoded)
+    let thumbnail = ''
+    if (thumbApi) {
+        try {
+            const thumbRes = await axios.get(thumbApi, {
+                timeout: 30000,
+                validateStatus: () => true,
+                headers: { 'User-Agent': SNAPTIK_USER_AGENT }
+            })
+            if (thumbRes.status === 200 && thumbRes.data?.thumbnail_url) {
+                thumbnail = String(thumbRes.data.thumbnail_url || '').trim()
+            }
+        } catch {}
+    }
+
+    const title = $$('div.video-title').first().text().trim() || ''
+    const authorText = $$('div.info span').first().text().trim() || ''
+
+    return {
+        type: 'video',
+        videoUrl: inputUrl,
+        video: {
+            url: finalVideoUrl,
+            urlHd: hdUrl || finalVideoUrl,
+            urlWatermark: directUrl || finalVideoUrl,
+            cover: pageMeta?.video?.cover || thumbnail,
+            duration: pageMeta?.video?.duration || 0,
+            width: pageMeta?.video?.width || 0,
+            height: pageMeta?.video?.height || 0
+        },
+        music: {
+            url: pageMeta?.music?.url || '',
+            id: pageMeta?.music?.id || '',
+            title: pageMeta?.music?.title || '',
+            author: pageMeta?.music?.author || '',
+            duration: pageMeta?.music?.duration || 0,
+            cover: pageMeta?.music?.cover || ''
+        },
+        author: {
+            id: pageMeta?.author?.id || '',
+            username: pageMeta?.author?.username || '',
+            nickname: pageMeta?.author?.nickname || authorText,
+            avatar: pageMeta?.author?.avatar || thumbnail
+        },
+        description: pageMeta?.description || title,
+        createTime: pageMeta?.createTime || '',
+        stats: {
+            likes: pageMeta?.stats?.likes,
+            comments: pageMeta?.stats?.comments,
+            shares: pageMeta?.stats?.shares,
+            plays: pageMeta?.stats?.plays,
+            saves: pageMeta?.stats?.saves
+        }
+    }
+}
 
 async function tiktok2(url) {
     const { data } = await tikwmApi.post(
@@ -289,4 +660,4 @@ async function searchTikTok(query, limit = 10) {
     return normalized.slice(0, lim)
 }
 
-export { MusicalDown, searchTikTok, tiktok2 }
+export { MusicalDown, searchTikTok, tiktok2, tiktok3 }
