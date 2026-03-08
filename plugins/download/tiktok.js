@@ -153,6 +153,46 @@ const mergePreferred = (primary = {}, fallback = {}) => {
     }
 }
 
+const pickBestMetadata = (primary = {}, fallback = {}) => {
+    const primaryStats = primary?.stats || {}
+    const fallbackStats = fallback?.stats || {}
+
+    const hasPrimaryStats = !(
+        isMissingValue(pickStat(primaryStats, ['likes', 'like_count', 'digg_count'])) &&
+        isMissingValue(pickStat(primaryStats, ['comments', 'comment_count'])) &&
+        isMissingValue(pickStat(primaryStats, ['plays', 'play_count', 'views', 'view_count'])) &&
+        isMissingValue(pickStat(primaryStats, ['shares', 'share_count', 'shareCount'])) &&
+        isMissingValue(pickStat(primaryStats, [
+            'saves',
+            'saved',
+            'collect_count',
+            'collectCount',
+            'collects',
+            'collects_count',
+            'saved_count',
+            'save_count',
+            'download_count',
+            'downloadCount',
+            'downloads'
+        ]))
+    )
+
+    const primaryDuration = primary?.duration || primary?.video?.duration || primary?.music?.duration
+    const fallbackDuration = fallback?.duration || fallback?.video?.duration || fallback?.music?.duration
+
+    return {
+        title: primary?.description || fallback?.description || '',
+        author: {
+            id: primary?.author?.id || fallback?.author?.id || '',
+            username: primary?.author?.username || fallback?.author?.username || '',
+            nickname: primary?.author?.nickname || fallback?.author?.nickname || '-',
+            avatar: primary?.author?.avatar || fallback?.author?.avatar || ''
+        },
+        stats: hasPrimaryStats ? primaryStats : fallbackStats,
+        duration: primaryDuration || fallbackDuration || 0
+    }
+}
+
 export default {
     name: 'tiktok',
     aliases: ['tt', 'tiktokdl', 'ttslide', 'tiktokslide', 'tiktoksearch', 'ttsearch'],
@@ -187,6 +227,7 @@ export default {
 
             try {
                 let result
+                let fallbackMeta = null
                 try {
                     result = await tiktok3(url)
                 } catch {
@@ -195,18 +236,20 @@ export default {
 
                 if (shouldBackfillMetadata(result)) {
                     try {
-                        const fallbackMeta = await tiktok2(url)
+                        fallbackMeta = await tiktok2(url)
                         result = mergePreferred(result, fallbackMeta)
                     } catch {}
                 }
 
+                const meta = pickBestMetadata(result, fallbackMeta || {})
+
                 if (result.type === 'photo') {
-                    const { images, author, description, music, stats } = result
+                    const { images, music } = result
                     const caption = formatCaption({
                         type: 'photo',
-                        title: description,
-                        author,
-                        stats
+                        title: meta.title,
+                        author: meta.author,
+                        stats: meta.stats
                     })
 
                     const mediaBuffers = await Promise.all(images.map((img) => fetchBuffer(img.url)))
@@ -231,13 +274,13 @@ export default {
                     return
                 }
 
-                const { video, author, description, music, stats } = result
+                const { video } = result
                 const caption = formatCaption({
                     type: 'video',
-                    title: description,
-                    author,
-                    stats,
-                    duration: result?.duration || music?.duration
+                    title: meta.title,
+                    author: meta.author,
+                    stats: meta.stats,
+                    duration: meta.duration
                 })
 
                 const videoBuf = await fetchBuffer(video.url)
