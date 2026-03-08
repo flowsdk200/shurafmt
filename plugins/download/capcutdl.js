@@ -1,4 +1,3 @@
-import axios from 'axios'
 import { gotScraping } from 'got-scraping'
 
 const ENTRY_URL = 'https://anydownloader.com/en/'
@@ -53,8 +52,11 @@ const toAbsoluteUrl = (baseUrl, maybeUrl) => {
 }
 
 const fetchEntryToken = async () => {
-    const { data } = await axios.get(ENTRY_URL, {
-        timeout: REQUEST_TIMEOUT,
+    const { statusCode, body } = await gotScraping(ENTRY_URL, {
+        throwHttpErrors: false,
+        timeout: { request: REQUEST_TIMEOUT },
+        retry: { limit: 0 },
+        followRedirect: true,
         headers: {
             'User-Agent': USER_AGENT,
             'Accept-Language': 'en-US,en;q=0.9',
@@ -62,7 +64,9 @@ const fetchEntryToken = async () => {
         }
     })
 
-    const html = String(data || '')
+    if (statusCode !== 200) throw new Error(`AnyDownloader entry HTTP ${statusCode}`)
+
+    const html = String(body || '')
     const token = html.match(/id="token"[^>]+value="([^"]+)"/i)?.[1] || ''
 
     if (!token) throw new Error('Gagal mengambil token AnyDownloader.')
@@ -71,13 +75,16 @@ const fetchEntryToken = async () => {
 
 const fetchCapcutData = async (pageUrl) => {
     const token = await fetchEntryToken()
-    const response = await axios.post(API_URL, new URLSearchParams({
+    const { statusCode, body } = await gotScraping.post(API_URL, {
+        throwHttpErrors: false,
+        timeout: { request: REQUEST_TIMEOUT },
+        retry: { limit: 0 },
+        followRedirect: true,
+        body: new URLSearchParams({
         url: pageUrl,
         token,
         hash: calculateHash(pageUrl)
-    }).toString(), {
-        timeout: REQUEST_TIMEOUT,
-        validateStatus: () => true,
+    }).toString(),
         headers: {
             'User-Agent': USER_AGENT,
             Accept: 'application/json,text/plain,*/*',
@@ -87,12 +94,15 @@ const fetchCapcutData = async (pageUrl) => {
         }
     })
 
-    const payload = typeof response.data === 'string'
-        ? JSON.parse(response.data || '{}')
-        : response.data
+    let payload
+    try {
+        payload = JSON.parse(String(body || '{}'))
+    } catch {
+        throw new Error('Gagal parse respons AnyDownloader.')
+    }
 
-    if (response.status >= 400) {
-        throw new Error(cleanText(payload?.error) || `HTTP ${response.status}`)
+    if (statusCode >= 400) {
+        throw new Error(cleanText(payload?.error) || `HTTP ${statusCode}`)
     }
 
     if (payload?.error) {
