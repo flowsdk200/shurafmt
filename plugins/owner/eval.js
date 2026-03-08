@@ -13,37 +13,22 @@ export default {
         (body.startsWith('>') && !body.startsWith('=>')) ||
         body.startsWith('$'),
 
-    execute: async ({
-        sock, msg, body, react, useLimit,
-        config, usersDb, groupsDb, user,
-        sender, botJid, pushName,
-        isOwner, isPremium, isGroup, isAdmin, isBotAdmin,
-        groupMetadata, mimetype,
-        isQuoted, quotedMsg, quotedType, quotedMimetype, contextInfo,
-    }) => {
-        const jid    = msg.key.remoteJid
-        const reply  = (text) => sock.sendMessage(jid, { text: String(text) }, { quoted: msg })
-        const m   = msg
-        const db  = usersDb
-        const gdb = groupsDb
-        const me  = botJid
+    execute: async ({ sock, msg, body, react, useLimit, isQuoted, quotedMsg, quotedType }) => {
+        const jid = msg.key.remoteJid
+        const reply = (text) => sock.sendMessage(jid, { text: String(text) }, { quoted: msg })
 
-        m.quoted      = isQuoted ? quotedMsg : null
-        m.quotedType  = quotedType  || null
-        m.isQuoted    = isQuoted
+        msg.quoted = isQuoted ? quotedMsg : null
+        msg.quotedType = quotedType || null
+        msg.isQuoted = isQuoted
 
         await react('⏳')
 
-        // ── MODE: => (eval + return, output JSON-formatted) ──
+        // ── MODE: => (eval + return) ──
         if (body.startsWith('=>')) {
             const code = body.slice(2).trim()
             try {
                 const evaled = await eval(`(async () => { return ${code} })()`)
-                const out = evaled === undefined
-                    ? 'undefined'
-                    : typeof evaled === 'object'
-                        ? format(JSON.stringify(evaled, null, 2))
-                        : format(evaled)
+                const out = evaled === undefined ? 'undefined' : format(evaled)
                 await reply(out)
                 useLimit()
                 await react('✅')
@@ -70,7 +55,7 @@ export default {
         // ── MODE: $ (shell exec) ──
         } else if (body.startsWith('$')) {
             const cmd = body.slice(1).trim()
-            if (!cmd) return react('❌')
+            if (!cmd) return
 
             _exec(cmd, { timeout: 30000 }, async (err, stdout, stderr) => {
                 const out = stdout?.trim() || stderr?.trim()

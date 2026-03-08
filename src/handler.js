@@ -593,6 +593,26 @@ export const handleMessage = async (sock, m) => {
             }
         }
 
+        if (isGroup) {
+            const antiHideTagOn = groupsDb.getSetting(msg.key.remoteJid, 'antihidetag', false) === true
+
+            if (antiHideTagOn) {
+                const mentionedJid = Array.isArray(contextInfo?.mentionedJid) ? contextInfo.mentionedJid.filter(Boolean) : []
+                const mentionCount = mentionedJid.length
+                const visibleMentionCount = (body.match(/@\S+/g) || []).length
+                const isHiddenTag = mentionCount > 0 && mentionCount > visibleMentionCount
+
+                if (isHiddenTag) {
+                    await ensureGroupFlags()
+
+                    if (!isOwner && !isPremium && !isAdmin && isBotAdmin) {
+                        await sock.sendMessage(msg.key.remoteJid, { delete: msg.key }).catch(() => {})
+                        return
+                    }
+                }
+            }
+        }
+
         if (isGroup && body) {
             const antiLinkGcOn = groupsDb.getSetting(msg.key.remoteJid, 'antilinkgc', false) === true
             const antiLinkChOn = groupsDb.getSetting(msg.key.remoteJid, 'antilinkch', false) === true
