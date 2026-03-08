@@ -1,7 +1,8 @@
 import { gotScraping } from 'got-scraping'
+import { CookieJar } from 'tough-cookie'
 
-const ENTRY_URL = 'https://anydownloader.com/en/'
-const API_URL = 'https://anydownloader.com/wp-json/api/download/'
+const ENTRY_URL = 'https://3bic.com/id'
+const API_URL = 'https://3bic.com/api/download'
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
 const REQUEST_TIMEOUT = 120000
 
@@ -41,8 +42,6 @@ const normalizeCapcutUrl = (input) => {
     }
 }
 
-const calculateHash = (url) => Buffer.from(url).toString('base64') + (url.length + 1000) + Buffer.from('api').toString('base64')
-
 const toAbsoluteUrl = (baseUrl, maybeUrl) => {
     try {
         return new URL(String(maybeUrl || ''), baseUrl).toString()
@@ -51,67 +50,68 @@ const toAbsoluteUrl = (baseUrl, maybeUrl) => {
     }
 }
 
-const fetchEntryToken = async () => {
-    const { statusCode, body } = await gotScraping(ENTRY_URL, {
+const create3bicClient = () => {
+    const cookieJar = new CookieJar()
+    return gotScraping.extend({
+        cookieJar,
         throwHttpErrors: false,
+        responseType: 'text',
         timeout: { request: REQUEST_TIMEOUT },
         retry: { limit: 0 },
-        followRedirect: true,
+        followRedirect: true
+    })
+}
+
+const warmup3bic = async (client) => {
+    const { statusCode } = await client(ENTRY_URL, {
         headers: {
             'User-Agent': USER_AGENT,
-            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Language': 'id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7',
             Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
         }
     })
 
-    if (statusCode !== 200) throw new Error(`AnyDownloader entry HTTP ${statusCode}`)
-
-    const html = String(body || '')
-    const token = html.match(/id="token"[^>]+value="([^"]+)"/i)?.[1] || ''
-
-    if (!token) throw new Error('Gagal mengambil token AnyDownloader.')
-    return token
+    if (statusCode !== 200) throw new Error(`3Bic entry HTTP ${statusCode}`)
 }
 
 const fetchCapcutData = async (pageUrl) => {
-    const token = await fetchEntryToken()
-    const { statusCode, body } = await gotScraping.post(API_URL, {
-        throwHttpErrors: false,
-        timeout: { request: REQUEST_TIMEOUT },
-        retry: { limit: 0 },
-        followRedirect: true,
-        body: new URLSearchParams({
-        url: pageUrl,
-        token,
-        hash: calculateHash(pageUrl)
-    }).toString(),
+    const client = create3bicClient()
+    await warmup3bic(client)
+
+    const { statusCode, body, headers } = await client.post(API_URL, {
+        json: { url: pageUrl },
         headers: {
             'User-Agent': USER_AGENT,
             Accept: 'application/json,text/plain,*/*',
-            'Content-Type': 'application/x-www-form-urlencoded',
-            Origin: 'https://anydownloader.com',
+            'Content-Type': 'application/json',
+            Origin: 'https://3bic.com',
             Referer: ENTRY_URL
         }
     })
 
+    const rawBody = String(body || '')
     let payload
     try {
-        payload = JSON.parse(String(body || '{}'))
+        payload = JSON.parse(rawBody)
     } catch {
-        throw new Error('Gagal parse respons AnyDownloader.')
+        const contentType = String(headers?.['content-type'] || '').toLowerCase()
+        if (contentType.includes('text/html') || /just a moment|cf-browser-verification|challenge-platform/i.test(rawBody)) {
+            throw new Error('3Bic kena Cloudflare challenge.')
+        }
+
+        throw new Error('Gagal parse respons 3Bic.')
     }
 
     if (statusCode >= 400) {
-        throw new Error(cleanText(payload?.error) || `HTTP ${statusCode}`)
+        throw new Error(cleanText(payload?.message || payload?.error) || `HTTP ${statusCode}`)
     }
 
-    if (payload?.error) {
-        throw new Error(cleanText(payload.error))
+    if (Number(payload?.code) !== 200) {
+        throw new Error(cleanText(payload?.message || payload?.error) || '3Bic gagal memproses link CapCut.')
     }
 
-    if (cleanText(payload?.source).toLowerCase() !== 'capcut') {
-        throw new Error('Respons AnyDownloader bukan sumber CapCut.')
-    }
+    payload.originalVideoUrl = toAbsoluteUrl('https://3bic.com', payload?.originalVideoUrl)
+    payload.coverUrl = toAbsoluteUrl('https://3bic.com', payload?.coverUrl)
 
     return payload
 }
@@ -186,33 +186,6 @@ const fetchTemplateDetail = async (pageUrl) => {
     return detail
 }
 
-const isDirectVideo = (media) => {
-    const extension = cleanText(media?.extension).toLowerCase()
-    const url = cleanText(media?.url).toLowerCase()
-    return extension === 'mp4' && /^https?:\/\//i.test(url) && !url.includes('.m3u8')
-}
-
-const extractResolution = (quality) => {
-    const text = cleanText(quality).toLowerCase()
-    if (text.includes('4k') || text.includes('2160')) return 2160
-    if (text.includes('2k') || text.includes('1440')) return 1440
-    if (text.includes('1080')) return 1080
-    if (text.includes('720')) return 720
-    return 0
-}
-
-const scoreMedia = (media) => {
-    const quality = cleanText(media?.quality).toLowerCase()
-    let score = Number(media?.size || 0)
-
-    if (quality.includes('no watermark') || quality.includes('no-watermark') || quality.includes('nowatermark') || quality.includes(' nw')) {
-        score += 10_000_000
-    }
-
-    score += extractResolution(quality) * 1_000
-    return score
-}
-
 const formatNumber = (value) => {
     const numeric = Number(value || 0)
     if (!Number.isFinite(numeric) || numeric < 0) return '0'
@@ -234,12 +207,6 @@ const formatDuration = (secValue) => {
     return `${hours}:${mm}:${seconds}`
 }
 
-const pickBestVideo = (medias) => {
-    const items = Array.isArray(medias) ? medias.filter(isDirectVideo) : []
-    if (!items.length) return null
-    return items.slice().sort((a, b) => scoreMedia(b) - scoreMedia(a))[0] || null
-}
-
 const formatSize = (value, fallback = '') => {
     const numeric = Number(value || 0)
     if (numeric > 0 && Number.isFinite(numeric)) {
@@ -252,10 +219,34 @@ const formatSize = (value, fallback = '') => {
     return cleanText(fallback) || '-'
 }
 
-const buildCaption = (detail, result, media) => {
+const fetchRemoteSize = async (url) => {
+    const target = cleanText(url)
+    if (!/^https?:\/\//i.test(target)) return ''
+
+    try {
+        const { headers, statusCode } = await gotScraping(target, {
+            method: 'HEAD',
+            throwHttpErrors: false,
+            timeout: { request: REQUEST_TIMEOUT },
+            retry: { limit: 0 },
+            followRedirect: true,
+            headers: {
+                'User-Agent': USER_AGENT,
+                Referer: ENTRY_URL
+            }
+        })
+
+        if (statusCode < 200 || statusCode >= 400) return ''
+        return formatSize(headers?.['content-length'])
+    } catch {
+        return ''
+    }
+}
+
+const buildCaption = (detail, result, sizeText) => {
     if (detail) {
         return (
-            `\`Author: ${cleanText(detail?.author?.name) || '-'}\`\n\n` +
+            `\`Author: ${cleanText(detail?.author?.name) || cleanText(result?.authorName) || '-'}\`\n\n` +
             `${cleanText(detail?.title) || cleanText(result?.title) || '-'}\n\n` +
             `\`\`\`• Duration: ${formatDuration(detail?.templateDuration)}\`\`\`\n` +
             `\`\`\`• Plays: ${formatNumber(detail?.playAmount)}\n` +
@@ -266,13 +257,12 @@ const buildCaption = (detail, result, media) => {
     }
 
     return (
-        `\`Author: -\`\n\n` +
+        `\`Author: ${cleanText(result?.authorName) || '-'}\`\n\n` +
         `${cleanText(result?.title) || '-'}\n\n` +
         `\`\`\`• Duration: -\`\`\`\n` +
-        `\`\`\`• Source: ${cleanText(result?.source) || '-'}\n` +
-        `• Quality: ${cleanText(media?.quality) || '-'}\n` +
-        `• Format: ${cleanText(media?.extension).toUpperCase() || '-'}\n` +
-        `• Size: ${formatSize(media?.size, media?.formattedSize)}\`\`\``
+        `\`\`\`• Source: 3Bic\n` +
+        `• Format: MP4\n` +
+        `• Size: ${sizeText || '-'}\`\`\``
     )
 }
 
@@ -297,19 +287,20 @@ export default {
                 fetchCapcutData(pageUrl),
                 fetchTemplateDetail(pageUrl).catch(() => null)
             ])
-            const media = pickBestVideo(result?.medias)
-
-            if (!media?.url) {
+            const videoUrl = cleanText(result?.originalVideoUrl)
+            if (!videoUrl) {
                 await react('❌')
                 return sock.sendMessage(jid, {
                     text: '❌ Video capcut tidak ditemukan dari link tersebut.'
                 }, { quoted: msg })
             }
 
+            const sizeText = await fetchRemoteSize(videoUrl)
+
             await sock.sendMessage(jid, {
-                video: { url: media.url },
+                video: { url: videoUrl },
                 mimetype: 'video/mp4',
-                caption: buildCaption(detail, result, media)
+                caption: buildCaption(detail, result, sizeText)
             }, { quoted: msg })
 
             useLimit()
