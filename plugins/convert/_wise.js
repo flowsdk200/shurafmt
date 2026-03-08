@@ -60,6 +60,11 @@ const formatUsd = (value) => `$${new Intl.NumberFormat('en-US', {
     maximumFractionDigits: 2
 }).format(Number(value) || 0)}`
 
+const formatUsdRate = (value) => `$${new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 4,
+    maximumFractionDigits: 8
+}).format(Number(value) || 0)}`
+
 const formatIdr = (value) => `Rp${new Intl.NumberFormat('id-ID', {
     minimumFractionDigits: 0,
     maximumFractionDigits: 2
@@ -94,6 +99,7 @@ const getIdrToUsdRate = async () => {
 export {
     formatIdr,
     formatUsd,
+    formatUsdRate,
     getIdrToUsdRate,
     getUsdToIdrRate,
     parseInputAmount,

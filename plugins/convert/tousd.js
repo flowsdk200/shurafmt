@@ -1,4 +1,4 @@
-import { formatIdr, formatUsd, getIdrToUsdRate, parseInputAmount, row } from './_wise.js'
+import { formatIdr, formatUsd, formatUsdRate, getIdrToUsdRate, parseInputAmount, row } from './_wise.js'
 
 export default {
     name: 'tousd',
@@ -21,7 +21,7 @@ export default {
             const result = amount * rate
             const detail = [
                 row('Input', formatIdr(amount)),
-                row('Rate', `${formatIdr(1)} = ${formatUsd(rate)}`),
+                row('Rate', `${formatIdr(1)} = ${formatUsdRate(rate)}`),
                 row('Hasil', formatUsd(result)),
                 row('Source', 'Wise')
             ].join('\n')
