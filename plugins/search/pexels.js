@@ -151,10 +151,10 @@ const fetchImageBuffer = async (url) => {
 
 const formatItem = (item, index) => (
     `${index + 1}. ${item.title}\n` +
-    `× Author: ${item.author}\n` +
-    `× Tags: ${item.tags}\n` +
-    `× Desc: ${item.desc}\n` +
-    `× Link: ${item.link}`
+    `• Author: ${item.author}\n` +
+    `• Tags: ${item.tags}\n` +
+    `• Desc: ${item.desc}\n` +
+    `• Link: ${item.link}`
 )
 
 const buildCaption = (rows) => rows

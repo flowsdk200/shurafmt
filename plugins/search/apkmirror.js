@@ -159,13 +159,13 @@ const parseSearchPage = (html) => {
 const formatRows = (items) => items
     .map((item, idx) => (
         `${idx + 1}. ${item.title}\n` +
-        `× Package: ${item.package}\n` +
-        `× Developer: ${item.developer}\n` +
-        `× Version: ${item.version}\n` +
-        `× Publish: ${item.publish}\n` +
-        `× Downloads: ${item.downloads}\n` +
-        `× APK: ${item.apkUrl}\n` +
-        `× Desc: ${item.desc}`
+        `• Package: ${item.package}\n` +
+        `• Developer: ${item.developer}\n` +
+        `• Version: ${item.version}\n` +
+        `• Publish: ${item.publish}\n` +
+        `• Downloads: ${item.downloads}\n` +
+        `• APK: ${item.apkUrl}\n` +
+        `• Desc: ${item.desc}`
     ))
     .join('\n\n')
 

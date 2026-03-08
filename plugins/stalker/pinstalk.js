@@ -178,21 +178,21 @@ const fetchPinterestProfile = async (username) => {
 
 const buildCaption = (m) => (
     `\`\`\`PINTEREST STALK ${m.fullName.toUpperCase()}\n\n` +
-    `× Username: ${m.username}\n` +
-    `× User ID: ${m.id}\n` +
-    `× Type: ${m.type}\n` +
-    `× Followers: ${toCompactNumber(m.followers)}\n` +
-    `× Following: ${toCompactNumber(m.following)}\n` +
-    `× Pins: ${toCompactNumber(m.pins)}\n` +
-    `× Boards: ${toCompactNumber(m.boards)}\n` +
-    `× Created: ${toDate(m.createdAt)}\n` +
-    `× Private: ${toBool(m.privateProfile)}\n` +
-    `× Indexed: ${toBool(m.indexed)}\n` +
-    `× Domain Verified: ${toBool(m.domainVerified)}\n` +
-    `× Verified Merchant: ${toBool(m.verifiedMerchant)}\n` +
-    `× Website: ${toSafe(m.website)}\n` +
-    `× About: ${toSafe(m.about, '[empty]')}\n` +
-    `× Link: ${m.source}\`\`\``
+    `• Username: ${m.username}\n` +
+    `• User ID: ${m.id}\n` +
+    `• Type: ${m.type}\n` +
+    `• Followers: ${toCompactNumber(m.followers)}\n` +
+    `• Following: ${toCompactNumber(m.following)}\n` +
+    `• Pins: ${toCompactNumber(m.pins)}\n` +
+    `• Boards: ${toCompactNumber(m.boards)}\n` +
+    `• Created: ${toDate(m.createdAt)}\n` +
+    `• Private: ${toBool(m.privateProfile)}\n` +
+    `• Indexed: ${toBool(m.indexed)}\n` +
+    `• Domain Verified: ${toBool(m.domainVerified)}\n` +
+    `• Verified Merchant: ${toBool(m.verifiedMerchant)}\n` +
+    `• Website: ${toSafe(m.website)}\n` +
+    `• About: ${toSafe(m.about, '[empty]')}\n` +
+    `• Link: ${m.source}\`\`\``
 )
 
 export default {

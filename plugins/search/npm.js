@@ -27,11 +27,11 @@ const formatResults = (items = []) => items
 
         return (
             `${index + 1}. ${name} @${version}${scoreText}\n` +
-            `× Desc: ${desc}\n` +
-            `× Publisher: ${publisher}\n` +
-            `× Maintainers: ${maintainers}\n` +
-            `× Keywords: ${keywords}\n` +
-            `× Link: ${url}`
+            `• Desc: ${desc}\n` +
+            `• Publisher: ${publisher}\n` +
+            `• Maintainers: ${maintainers}\n` +
+            `• Keywords: ${keywords}\n` +
+            `• Link: ${url}`
         )
     })
     .join('\n\n')

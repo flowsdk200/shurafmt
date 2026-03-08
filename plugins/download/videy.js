@@ -118,11 +118,11 @@ const normalizeMime = (mime, ext) => {
 }
 
 const buildCaption = (meta) =>
-    `\`\`\`× Title: Videy Video\n` +
-    `× ID: ${meta.id}\n` +
-    `× Ext: ${meta.ext}\n` +
-    `× Size: ${meta.size}\n` +
-    `× Mime: ${meta.mime}\`\`\``
+    `\`\`\`• Title: videy video\n` +
+    `• ID: ${meta.id}\n` +
+    `• Ext: ${meta.ext}\n` +
+    `• Size: ${meta.size}\n` +
+    `• Mime: ${meta.mime}\`\`\``
 
 export default {
     name: 'videy',

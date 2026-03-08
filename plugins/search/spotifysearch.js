@@ -27,10 +27,10 @@ export default {
 
             const lines = results.map((item, i) => (
                 `\`\`\`${i + 1}. ${item.title}\n` +
-                `× Artist: ${item.artists || '-'}\n` +
-                `× Album: ${item.album || '-'}\n` +
-                `× Duration: ${item.durationFormatted || '-'}\n` +
-                `× Link: ${item.url || '-'}\`\`\``
+                `• Artist: ${item.artists || '-'}\n` +
+                `• Album: ${item.album || '-'}\n` +
+                `• Duration: ${item.durationFormatted || '-'}\n` +
+                `• Link: ${item.url || '-'}\`\`\``
             ))
 
             const thumb = results[0]?.image || ''

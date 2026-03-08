@@ -325,7 +325,7 @@ const formatItem = (item) => {
     const desc = truncate(stripHtml(item.description), 130)
     const date = toNewsDate(item.pubDate)
 
-    return `${title}\n× Tanggal: ${date}\n× Link: ${item.link}\n× Deskripsi: ${desc}`
+    return `${title}\n• Tanggal: ${date}\n• Link: ${item.link}`
 }
 
 const formatList = (items, limit) =>

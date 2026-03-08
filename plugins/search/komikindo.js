@@ -214,20 +214,20 @@ const buildResultMetadata = (item, detail = {}) => ({
 const formatResults = (items = []) => items
     .map((item, index) => (
         `${index + 1}. ${item.title}\n` +
-        `× Rating: ${item.rating}\n` +
-        `× Judul Alternatif: ${item.altTitle}\n` +
-        `× Status: ${item.status}\n` +
-        `× Pengarang: ${item.author}\n` +
-        `× Ilustrator: ${item.illustrator}\n` +
-        `× Grafis: ${item.artStyle}\n` +
-        `× Tema: ${item.genre}\n` +
-        `× Jenis: ${item.type}\n` +
-        `× Retail: ${item.retail}\n` +
-        `× Official: ${item.official}\n` +
-        `× Chapter Awal: ${item.chapterAwal}\n` +
-        `× Chapter Baru: ${item.chapterBaru}\n` +
-        `× Deskripsi: ${item.description}\n` +
-        `× Link: ${item.url}`
+        `• Rating: ${item.rating}\n` +
+        `• Judul Alternatif: ${item.altTitle}\n` +
+        `• Status: ${item.status}\n` +
+        `• Pengarang: ${item.author}\n` +
+        `• Ilustrator: ${item.illustrator}\n` +
+        `• Grafis: ${item.artStyle}\n` +
+        `• Tema: ${item.genre}\n` +
+        `• Jenis: ${item.type}\n` +
+        `• Retail: ${item.retail}\n` +
+        `• Official: ${item.official}\n` +
+        `• Chapter Awal: ${item.chapterAwal}\n` +
+        `• Chapter Baru: ${item.chapterBaru}\n` +
+        `• Deskripsi: ${item.description}\n` +
+        `• Link: ${item.url}`
     ))
     .join('\n\n')
 

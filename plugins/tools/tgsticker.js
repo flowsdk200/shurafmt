@@ -141,12 +141,12 @@ export default {
             await sock.sendMessage(jid, {
                 text:
                     '```✅ TELEGRAM STICKER DONE\n\n' +
-                    `× Pack: ${packLabel}\n` +
-                    `× Name: ${cleanText(set?.name || packName)}\n` +
-                    `× Type: ${cleanText(set?.sticker_type || '-')}\n` +
-                    `× Total: ${stickers.length}\n` +
-                    `× Sent: ${sent}\n` +
-                    `× Failed: ${failed}` +
+                    `• Pack: ${packLabel}\n` +
+                    `• Name: ${cleanText(set?.name || packName)}\n` +
+                    `• Type: ${cleanText(set?.sticker_type || '-')}\n` +
+                    `• Total: ${stickers.length}\n` +
+                    `• Sent: ${sent}\n` +
+                    `• Failed: ${failed}` +
                     '```'
             }, { quoted: msg })
         } catch (err) {

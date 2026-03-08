@@ -23,10 +23,10 @@ const buildCaption = (result) => {
     const length = formatDuration(result.duration)
 
     return [
-        `\`\`\`× Title: ${result.title || '-'}`,
-        `× Duration: ${length || '-'}`,
-        `× Quality: ${result.bestMedia?.quality || '-'}`,
-        `× Size: ${size || '-'}\`\`\``
+        `\`\`\`• Title: ${result.title || '-'}`,
+        `• Duration: ${length || '-'}`,
+        `• Quality: ${result.bestMedia?.quality || '-'}`,
+        `• Size: ${size || '-'}\`\`\``
     ].join('\n')
 }
 

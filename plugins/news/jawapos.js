@@ -4,7 +4,7 @@ import { gotScraping } from 'got-scraping'
 
 const SOURCE_URL = 'https://www.jawapos.com/'
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-const MAX_RESULTS = 10
+const MAX_RESULTS = 15
 const MAX_CANDIDATES = 60
 
 const cleanText = (value) => String(value || '').replace(/\s+/g, ' ').trim()
@@ -58,6 +58,8 @@ const fetchHomeLinks = async () => {
         throw new Error(`Homepage merespon status ${response.statusCode}.`)
     }
 
+    console.log(`[JAWAPOS DEBUG] home status=${response.statusCode} url=${SOURCE_URL} bytes=${String(response.body || '').length}`)
+
     const $ = load(String(response.body || ''))
     const links = []
 
@@ -69,7 +71,9 @@ const fetchHomeLinks = async () => {
         links.push(abs)
     })
 
-    return [...new Set(links)].slice(0, MAX_CANDIDATES)
+    const uniqueLinks = [...new Set(links)].slice(0, MAX_CANDIDATES)
+    console.log(`[JAWAPOS DEBUG] home links=${uniqueLinks.length}`)
+    return uniqueLinks
 }
 
 const fetchArticleMeta = async (url) => {
@@ -84,6 +88,7 @@ const fetchArticleMeta = async (url) => {
         }
     })
 
+    console.log(`[JAWAPOS DEBUG] article status=${response.statusCode} url=${url}`)
     if (response.statusCode !== 200) return null
 
     const html = String(response.body || '')
@@ -109,13 +114,16 @@ const fetchArticleMeta = async (url) => {
         ''
     )
 
-    return title ? {
+    const result = title ? {
         title,
         link: url,
         pubDate,
         description: description || '-',
         image
     } : null
+
+    console.log(`[JAWAPOS DEBUG] article parsed title=${title ? 'yes' : 'no'} image=${image ? 'yes' : 'no'} date=${pubDate ? 'yes' : 'no'} url=${url}`)
+    return result
 }
 
 const fetchImageBuffer = async (url) => {
@@ -133,21 +141,23 @@ const fetchImageBuffer = async (url) => {
         })
 
         const contentType = cleanText(response.headers?.['content-type']).toLowerCase()
+        console.log(`[JAWAPOS DEBUG] image status=${response.status} type=${contentType || '-'} url=${url}`)
         if (response.status < 200 || response.status >= 400) return null
         if (!contentType.startsWith('image/')) return null
 
         const buffer = Buffer.from(response.data || [])
+        console.log(`[JAWAPOS DEBUG] image bytes=${buffer.length} url=${url}`)
         return buffer.length ? buffer : null
     } catch {
+        console.log(`[JAWAPOS DEBUG] image fetch failed url=${url}`)
         return null
     }
 }
 
 const formatItem = (item, index) => (
     `${index + 1}. ${item.title}\n` +
-    `× Tanggal: ${toNewsDate(item.pubDate)}\n` +
-    `× Link: ${item.link}\n` +
-    `× Deskripsi: ${truncate(item.description)}`
+    `• Tanggal: ${toNewsDate(item.pubDate)}\n` +
+    `• Link: ${item.link}`
 )
 
 export default {
@@ -179,6 +189,8 @@ export default {
 
                 items.push(meta)
             }
+
+            console.log(`[JAWAPOS DEBUG] items=${items.length} firstImage=${firstImage ? 'yes' : 'no'}`)
 
             if (!items.length) {
                 await react('❌')

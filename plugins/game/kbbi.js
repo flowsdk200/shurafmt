@@ -65,11 +65,11 @@ const getOtherPlayer = (session, jid) => session.players.find((x) => x !== jid) 
 
 const buildHelp = (prefix, command) =>
     `Format duel KBBI:\n` +
-    `• ${prefix + command} duel/tantang @user\n` +
-    `• ${prefix + command} duel/tantang @user (klasik/rank)\n` +
-    `• ${prefix + command} acc/tolak/stop\n` +
-    `• ${prefix + command} statistik @user\n` +
-    `• ${prefix + command} top`
+    `- ${prefix + command} duel/tantang @user\n` +
+    `- ${prefix + command} duel/tantang @user (klasik/rank)\n` +
+    `- ${prefix + command} acc/tolak/stop\n` +
+    `- ${prefix + command} statistik @user\n` +
+    `- ${prefix + command} top`
 
 const resetRoundState = (session) => {
     session.usedWords = new Set()

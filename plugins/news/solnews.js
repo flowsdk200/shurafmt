@@ -2,8 +2,8 @@ import axios from 'axios'
 
 const API_BASE = 'https://sol-news-api.vercel.app/v1'
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-const DEFAULT_LIMIT = 10
-const MAX_LIMIT = 10
+const DEFAULT_LIMIT = 15
+const MAX_LIMIT = 15
 const DEFAULT_CATEGORY = 'general'
 
 const IMAGE_EXTENSIONS = /\.(jpe?g|png|webp|gif|bmp|svg)$/
@@ -176,7 +176,7 @@ const formatItem = (item) => {
     const desc = truncate(stripHtml(item.description || item.summary || item.content), 120)
     const rawDate = item.publishedAt || item.pubDate || item.date
 
-    return `${title}\n× Tanggal: ${toNewsDate(rawDate)}\n× Link: ${String(item.url || item.link || '-')}\n× Deskripsi: ${desc}`
+    return `${title}\n• Tanggal: ${toNewsDate(rawDate)}\n• Link: ${String(item.url || item.link || '-')}`
 }
 
 const formatList = (items, limit) => items

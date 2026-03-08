@@ -32,17 +32,17 @@ const formatResults = (items = []) => items
         const watchers = fmtCount(repo.watchers_count || 0)
         const openIssues = fmtCount(repo.open_issues_count || 0)
         const updated = formatDate(repo.updated_at || '')
-        const homepage = repo.homepage ? `\n × Homepage: ${repo.homepage}` : ''
+        const homepage = repo.homepage ? `\n • Homepage: ${repo.homepage}` : ''
         return (
             `${index + 1}. ${name}\n` +
-            `× Desc: ${desc}\n` +
-            `× Stars: ${stars}\n` +
-            `× Forks: ${forks}\n` +
-            `× Watchers: ${watchers}\n` +
-            `× Issues: ${openIssues}\n` +
-            `× Language: ${language}\n` +
-            `× Updated: ${updated}\n` +
-            `× Link: ${repo.html_url || '-'}${homepage}`
+            `• Desc: ${desc}\n` +
+            `• Stars: ${stars}\n` +
+            `• Forks: ${forks}\n` +
+            `• Watchers: ${watchers}\n` +
+            `• Issues: ${openIssues}\n` +
+            `• Language: ${language}\n` +
+            `• Updated: ${updated}\n` +
+            `• Link: ${repo.html_url || '-'}${homepage}`
         )
     })
     .join('\n\n')

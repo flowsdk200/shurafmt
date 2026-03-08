@@ -167,10 +167,10 @@ export default {
             await sock.sendMessage(jid, {
                 text:
                     '```✅ VIDEY UPLOAD SUCCESS\n\n' +
-                    `× Name: ${filename}\n` +
-                    `× Type: ${mimetype}\n` +
-                    `× Size: ${formatSize(buffer.length)}\n` +
-                    `× Link: ${result.link}` +
+                    `• Name: ${filename}\n` +
+                    `• Type: ${mimetype}\n` +
+                    `• Size: ${formatSize(buffer.length)}\n` +
+                    `• Link: ${result.link}` +
                     '```'
             }, { quoted: msg })
         } catch (err) {

@@ -535,12 +535,12 @@ const enrichMetaFromDetail = async (item) => {
 const formatResults = (items = []) => items
     .map((item, index) => (
         `\`\`\`${index + 1}. ${item.title}\n` +
-        `× Developer: ${item.developer}\n` +
-        `× Rating: ${item.rating}\n` +
-        `× Reviews: ${item.reviews}\n` +
-        `× Size: ${item.size}\n` +
-        `× Android: ${item.android}\n` +
-        `× Link: ${item.link}\`\`\``
+        `• Developer: ${item.developer}\n` +
+        `• Rating: ${item.rating}\n` +
+        `• Reviews: ${item.reviews}\n` +
+        `• Size: ${item.size}\n` +
+        `• Android: ${item.android}\n` +
+        `• Link: ${item.link}\`\`\``
     )).join('\n\n')
 
 export default {

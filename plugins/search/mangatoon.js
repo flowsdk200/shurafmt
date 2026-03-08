@@ -240,11 +240,11 @@ const filterReadableRows = async (rows) => {
 
 const formatItem = (item, index) => (
     `${index + 1}. ${item.title}\n` +
-    `× Author: ${item.author || '-'}\n` +
-    `× Views: ${item.views || '-'}\n` +
-    `× Likes: ${item.likes || '-'}\n` +
-    `× Tags: ${item.tags}\n` +
-    `× Link: ${item.link}`
+    `• Author: ${item.author || '-'}\n` +
+    `• Views: ${item.views || '-'}\n` +
+    `• Likes: ${item.likes || '-'}\n` +
+    `• Tags: ${item.tags}\n` +
+    `• Link: ${item.link}`
 )
 
 const buildCaption = (rows) => rows.map((item, idx) => formatItem(item, idx)).join('\n\n')

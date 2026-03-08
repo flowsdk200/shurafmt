@@ -419,14 +419,14 @@ const buildCaption = ({ archive, shareInfo, qualityLabel, sourceUrl }) => {
     const published = cleanText(archive?.formatted_pub_date || archive?.pub_date || '-')
 
     return (
-        `\`\`\`× Title: ${title}\n` +
-        `× Uploader: ${uploader}\n` +
-        `× Duration: ${duration}\n` +
-        `× Quality: ${qualityLabel}\n` +
-        `× Views: ${views}\n` +
-        `× Likes: ${likes}\n` +
-        `× Followers: ${followers}\n` +
-        `× Publish: ${published}`
+        `\`\`\`• Title: ${title}\n` +
+        `• Uploader: ${uploader}\n` +
+        `• Duration: ${duration}\n` +
+        `• Quality: ${qualityLabel}\n` +
+        `• Views: ${views}\n` +
+        `• Likes: ${likes}\n` +
+        `• Followers: ${followers}\n` +
+        `• Publish: ${published}`
     )
 }
 

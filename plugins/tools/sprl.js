@@ -130,9 +130,9 @@ export default {
 
             await reply(
                 '```SHORTLINK\n\n' +
-                `× Source: SPRL\n` +
-                `× Original: ${target.toString()}\n` +
-                `× Short: ${shortUrl}` +
+                `• Source: SPRL\n` +
+                `• Original: ${target.toString()}\n` +
+                `• Short: ${shortUrl}` +
                 '```'
             )
 

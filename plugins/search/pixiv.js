@@ -129,7 +129,7 @@ const buildCandidates = async (items = [], limit = DEFAULT_LIMIT) => {
 }
 
 const formatLines = (items = []) => items
-    .map((item, index) => `${index + 1}. ${item.title}\n× Artis: ${item.artist}`)
+    .map((item, index) => `${index + 1}. ${item.title}\n• Artis: ${item.artist}`)
     .join('\n\n')
 
 export default {

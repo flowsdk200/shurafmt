@@ -285,9 +285,9 @@ const formatBytes = (bytes) => {
 }
 
 const buildCaption = ({ title, fileName, size, mime }) => (
-    `❖ Name: ${fileName}\n` +
-    `❖ Size: ${size}\n` +
-    `❖ Mime: ${mime || '-'}`
+    `• Name: ${fileName}\n` +
+    `• Size: ${size}\n` +
+    `• Mime: ${mime || '-'}`
 )
 
 export default {

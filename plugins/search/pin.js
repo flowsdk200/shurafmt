@@ -65,7 +65,7 @@ export default {
 
             const metaLines = uniqueRows.map((x, i) => (
                 `(${i + 1}) ${x.title || '(no title)'}\n` +
-                `× Author: ${x.author?.name || '-'}${x.author?.username ? ` (@${x.author.username})` : ''}`
+                `• Author: ${x.author?.name || '-'}${x.author?.username ? ` (@${x.author.username})` : ''}`
             ))
 
             const caption = (`\`\`\`${metaLines.join('\n\n')}\`\`\``)

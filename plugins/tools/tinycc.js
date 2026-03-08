@@ -88,9 +88,9 @@ export default {
 
             await reply(
                 '```SHORTLINK\n\n' +
-                '× Source: tiny.cc\n' +
-                `× Original: ${target.toString()}\n` +
-                `× Short: ${shortUrl}` +
+                '• Source: tiny.cc\n' +
+                `• Original: ${target.toString()}\n` +
+                `• Short: ${shortUrl}` +
                 '```'
             )
 

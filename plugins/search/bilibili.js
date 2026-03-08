@@ -195,16 +195,16 @@ const resolveImageBuffer = async (rows) => {
 const formatCaption = (item, idx) => {
     const lines = [
         `${idx + 1}. ${item.title}`,
-        `× Source: ${item.source}`
+        `• Source: ${item.source}`
     ]
 
-    if (cleanText(item.views)) lines.push(`× Views: ${item.views}`)
-    if (cleanText(item.duration)) lines.push(`× Duration: ${item.duration}`)
-    if (cleanText(item.uploader)) lines.push(`× Uploader: ${item.uploader}`)
-    if (cleanText(item.status)) lines.push(`× Status: ${item.status}`)
-    if (cleanText(item.desc)) lines.push(`× Desc: ${item.desc}`)
+    if (cleanText(item.views)) lines.push(`• Views: ${item.views}`)
+    if (cleanText(item.duration)) lines.push(`• Duration: ${item.duration}`)
+    if (cleanText(item.uploader)) lines.push(`• Uploader: ${item.uploader}`)
+    if (cleanText(item.status)) lines.push(`• Status: ${item.status}`)
+    if (cleanText(item.desc)) lines.push(`• Desc: ${item.desc}`)
 
-    lines.push(`× Link: ${item.link}`)
+    lines.push(`• Link: ${item.link}`)
     return lines.join('\n')
 }
 

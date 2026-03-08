@@ -150,13 +150,13 @@ const buildCaption = (detail, pageUrl) => {
     const templateId = cleanText(detail?.templateId) || '-'
 
     return (
-        `\`\`\`× Title: ${title}\n` +
-        `× Duration: ${duration}\n` +
-        `× Author: ${author}\n` +
-        `× Plays: ${playAmount}\n` +
-        `× Usage: ${usageAmount}\n` +
-        `× Likes: ${likeAmount}\n` +
-        `× Comments: ${commentAmount}\`\`\``
+        `\`\`\`• Title: ${title}\n` +
+        `• Duration: ${duration}\n` +
+        `• Author: ${author}\n` +
+        `• Plays: ${playAmount}\n` +
+        `• Usage: ${usageAmount}\n` +
+        `• Likes: ${likeAmount}\n` +
+        `• Comments: ${commentAmount}\`\`\``
     )
 }
 

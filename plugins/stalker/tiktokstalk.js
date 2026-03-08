@@ -159,21 +159,21 @@ const fetchTiktokProfile = async (username) => {
 
 const buildCaption = (m) => (
     `\`\`\`TIKTOK STALK ${m.nickname.toUpperCase()}\n\n` +
-    `× Username: @${m.uniqueId}\n` +
-    `× User ID: ${m.id}\n` +
-    `× Created: ${toDateFromUnix(m.createTime)}\n` +
-    `× Verified: ${toBool(m.verified)}\n` +
-    `× Private: ${toBool(m.privateAccount)}\n` +
-    `× Followers: ${toCompactNumber(m.followerCount)}\n` +
-    `× Following: ${toCompactNumber(m.followingCount)}\n` +
-    `× Likes: ${toCompactNumber(m.heartCount)}\n` +
-    `× Videos: ${toCompactNumber(m.videoCount)}\n` +
-    `× Friends: ${toCompactNumber(m.friendCount)}\n` +
-    `× Region/Language: ${toSafe(m.region)}\n` +
-    `× Commerce Category: ${toSafe(m.commerceCategory)}\n` +
-    `× Bio Link: ${toSafe(m.bioLink)}\n` +
-    `× Bio: ${toSafe(m.signature, '[empty]')}\n` +
-    `× Link: ${m.source}\`\`\``
+    `• Username: @${m.uniqueId}\n` +
+    `• User ID: ${m.id}\n` +
+    `• Created: ${toDateFromUnix(m.createTime)}\n` +
+    `• Verified: ${toBool(m.verified)}\n` +
+    `• Private: ${toBool(m.privateAccount)}\n` +
+    `• Followers: ${toCompactNumber(m.followerCount)}\n` +
+    `• Following: ${toCompactNumber(m.followingCount)}\n` +
+    `• Likes: ${toCompactNumber(m.heartCount)}\n` +
+    `• Videos: ${toCompactNumber(m.videoCount)}\n` +
+    `• Friends: ${toCompactNumber(m.friendCount)}\n` +
+    `• Region/Language: ${toSafe(m.region)}\n` +
+    `• Commerce Category: ${toSafe(m.commerceCategory)}\n` +
+    `• Bio Link: ${toSafe(m.bioLink)}\n` +
+    `• Bio: ${toSafe(m.signature, '[empty]')}\n` +
+    `• Link: ${m.source}\`\`\``
 )
 
 export default {

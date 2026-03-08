@@ -3,8 +3,8 @@ import { load } from 'cheerio'
 
 const SITEMAP_URL = 'https://www.validnews.id/terkini/terkini_sitemap.xml'
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-const DEFAULT_LIMIT = 10
-const MAX_LIMIT = 10
+const DEFAULT_LIMIT = 15
+const MAX_LIMIT = 15
 const DEFAULT_MAX_CANDIDATES = 60
 const IMAGE_EXTENSIONS = /\.(jpe?g|png|webp|gif|bmp|svg|avif|heic|heif)(\?|$)/i
 const VIDEO_EXTENSIONS = /\.(3gp|avi|flv|m4v|mkv|mov|mp4|mpg|mpeg|m3u8|webm|wmv|ogv)(\?|$)/i
@@ -264,7 +264,7 @@ const extractMeta = async (url, fallbackDate = '-') => {
 }
 
 const formatItem = ({ title, link, date, description }) =>
-    `${title}\n× Tanggal: ${date}\n× Link: ${link}\n× Deskripsi: ${truncate(description)}`
+    `${title}\n• Tanggal: ${date}\n• Link: ${link}`
 
 const buildMessage = (items, limit) =>
     items.slice(0, limit).map((item, index) => `\`\`\`${index + 1}. ${formatItem(item)}\`\`\``).join('\n\n')

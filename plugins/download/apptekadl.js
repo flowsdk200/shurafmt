@@ -259,15 +259,15 @@ const formatDate = (value) => {
 }
 
 const buildCaption = (info) =>
-    `\`\`\`× Title: ${info.title}\n` +
-    `× Package: ${info.packageId}\n` +
-    `× Version: ${info.version} (${info.versionCode})\n` +
-    `× Android: ${info.android}\n` +
-    `× Rating: ${info.rating}\n` +
-    `× Downloads: ${info.downloads}\n` +
-    `× Category: ${info.category}\n` +
-    `× Size: ${info.size}\n` +
-    `× Updated: ${info.updated}\`\`\``
+    `\`\`\`• Title: ${info.title}\n` +
+    `• Package: ${info.packageId}\n` +
+    `• Version: ${info.version} (${info.versionCode})\n` +
+    `• Android: ${info.android}\n` +
+    `• Rating: ${info.rating}\n` +
+    `• Downloads: ${info.downloads}\n` +
+    `• Category: ${info.category}\n` +
+    `• Size: ${info.size}\n` +
+    `• Updated: ${info.updated}\`\`\``
 
 const resolveAppMetadata = async (appPageUrl, appId) => {
     const page = await requestText(appPageUrl)

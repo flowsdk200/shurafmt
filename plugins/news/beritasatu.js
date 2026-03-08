@@ -3,7 +3,7 @@ import { load } from 'cheerio'
 
 const SITEMAP_URL = 'https://www.beritasatu.com/sitemap/nasional/news.xml'
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-const MAX_RESULTS = 10
+const MAX_RESULTS = 15
 
 const cleanText = (value) => String(value || '').replace(/\s+/g, ' ').trim()
 
@@ -116,9 +116,8 @@ const fetchImageBuffer = async (url) => {
 
 const formatItem = (item, index) => (
     `${index + 1}. ${item.title}\n` +
-    `× Tanggal: ${toNewsDate(item.pubDate)}\n` +
-    `× Link: ${item.link}\n` +
-    `× Deskripsi: ${truncate(item.description)}`
+    `• Tanggal: ${toNewsDate(item.pubDate)}\n` +
+    `• Link: ${item.link}`
 )
 
 export default {

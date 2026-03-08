@@ -371,19 +371,19 @@ const buildCaption = (u, source) => {
 
     return (
         `\`\`\`INSTAGRAM STALK ${toSafe(u.full_name, u.username).toUpperCase()}\n\n` +
-        `× Username: @${u.username}\n` +
-        `× User ID: ${toSafe(u.id)}\n` +
-        `× Followers: ${toCompactNumber(followers)}\n` +
-        `× Following: ${toCompactNumber(following)}\n` +
-        `× Posts: ${toCompactNumber(posts)}\n` +
-        `× Verified: ${toBoolOrUnknown(u.is_verified)}\n` +
-        `× Private: ${toBoolOrUnknown(u.is_private)}\n` +
-        `× Business: ${toBoolOrUnknown(flags.business)}\n` +
-        `× Professional: ${toBoolOrUnknown(flags.professional)}\n` +
-        `× Category: ${toSafe(flags.category)}\n` +
-        `× External URL: ${toSafe(u.external_url)}\n` +
-        `× Bio: ${toSafe(u.biography, '[empty]')}\n` +
-        `× Link: ${source}\`\`\``
+        `• Username: @${u.username}\n` +
+        `• User ID: ${toSafe(u.id)}\n` +
+        `• Followers: ${toCompactNumber(followers)}\n` +
+        `• Following: ${toCompactNumber(following)}\n` +
+        `• Posts: ${toCompactNumber(posts)}\n` +
+        `• Verified: ${toBoolOrUnknown(u.is_verified)}\n` +
+        `• Private: ${toBoolOrUnknown(u.is_private)}\n` +
+        `• Business: ${toBoolOrUnknown(flags.business)}\n` +
+        `• Professional: ${toBoolOrUnknown(flags.professional)}\n` +
+        `• Category: ${toSafe(flags.category)}\n` +
+        `• External URL: ${toSafe(u.external_url)}\n` +
+        `• Bio: ${toSafe(u.biography, '[empty]')}\n` +
+        `• Link: ${source}\`\`\``
     )
 }
 

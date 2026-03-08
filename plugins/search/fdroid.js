@@ -125,10 +125,10 @@ const fetchImageBuffer = async (url) => {
 
 const formatItem = (item, idx) =>
     `${idx + 1}. ${item.title}\n` +
-    `× Source: ${item.source}\n` +
-    `× Desc: ${item.desc}\n` +
-    `× License: ${item.license}\n` +
-    `× Link: ${item.link}`
+    `• Source: ${item.source}\n` +
+    `• Desc: ${item.desc}\n` +
+    `• License: ${item.license}\n` +
+    `• Link: ${item.link}`
 
 export default {
     name: 'fdroid',

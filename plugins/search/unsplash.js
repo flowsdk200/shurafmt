@@ -148,10 +148,10 @@ const fetchRows = async (query) => {
 
 const formatItem = (item, index) => (
     `${index + 1}. ${item.title}\n` +
-    `× Author: ${item.author} (@${item.username})\n` +
-    `× Likes: ${item.likes}\n` +
-    `× Desc: ${item.description}\n` +
-    `× Link: ${item.link}`
+    `• Author: ${item.author} (@${item.username})\n` +
+    `• Likes: ${item.likes}\n` +
+    `• Desc: ${item.description}\n` +
+    `• Link: ${item.link}`
 )
 
 const buildCaption = (rows) => rows

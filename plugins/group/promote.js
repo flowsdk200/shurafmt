@@ -42,7 +42,7 @@ export default {
             await react('✅')
             const phone = targetJid.split('@')[0]
             await sock.sendMessage(jid, {
-                text: `✅ @${phone} berhasil dijadikan admin grup.`,
+                text: `✅ @${phone} dijadikan admin grup.`,
                 mentions: [targetJid]
             }, { quoted: msg })
         } catch (err) {

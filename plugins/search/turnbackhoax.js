@@ -110,11 +110,11 @@ const fetchRows = async (query) => {
 
 const formatItem = (item, idx) => (
     `${idx + 1}. ${item.title}\n` +
-    `× Source: ${item.source}\n` +
-    `× Status: ${item.status}\n` +
-    `× Category: ${item.category}\n` +
-    `× Date: ${item.date}\n` +
-    `× Link: ${item.link}`
+    `• Source: ${item.source}\n` +
+    `• Status: ${item.status}\n` +
+    `• Category: ${item.category}\n` +
+    `• Date: ${item.date}\n` +
+    `• Link: ${item.link}`
 )
 
 export default {

@@ -193,7 +193,7 @@ export default {
 
             const meta = results.map((item, i) => (
                 `${i + 1}. ${item.title}\n` +
-                `× Description: ${item.desc}`
+                `• Description: ${item.desc}`
             )).join('\n\n')
 
             const caption = `\`\`\`${meta}\`\`\``

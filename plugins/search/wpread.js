@@ -203,13 +203,13 @@ const splitToChunks = (text, maxLength = MAX_TEXT_LENGTH) => {
 const buildHeader = (story, part) => {
     const total = Math.max(story.partTotal, story.parts.length)
     return (
-        `\`\`\`× Title: ${story.title}\n` +
-        `× Author: ${story.author}\n` +
-        `× Part: ${part.index}/${total}\n` +
-        `× Part title: ${part.title}\n` +
-        `× Read: ${fmtCount(part.readCount)}\n` +
-        `× Vote: ${fmtCount(part.voteCount)}\n` +
-        `× Comment: ${fmtCount(part.commentCount)}\n\n\`\`\``
+        `\`\`\`• Title: ${story.title}\n` +
+        `• Author: ${story.author}\n` +
+        `• Part: ${part.index}/${total}\n` +
+        `• Part title: ${part.title}\n` +
+        `• Read: ${fmtCount(part.readCount)}\n` +
+        `• Vote: ${fmtCount(part.voteCount)}\n` +
+        `• Comment: ${fmtCount(part.commentCount)}\n\n\`\`\``
     )
 }
 

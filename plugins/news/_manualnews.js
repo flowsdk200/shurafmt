@@ -2,8 +2,8 @@ import axios from 'axios'
 import { load } from 'cheerio'
 
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-const DEFAULT_LIMIT = 10
-const MAX_LIMIT = 10
+const DEFAULT_LIMIT = 15
+const MAX_LIMIT = 15
 const REQUEST_TIMEOUT = 15000
 const VIDEO_EXT_RE = /(\.)(3gp|avi|flv|m4v|mkv|mov|mp4|mpg|mpeg|m3u8|webm|wmv|ogv)(\?|$)/i
 const IMAGE_EXT_RE = /\.(jpe?g|png|webp|gif|bmp|svg|avif|heic|heif)(\?|$)/i
@@ -339,7 +339,7 @@ const collectLinks = async (pageUrl, linkPattern, selector = 'a[href]') => {
 }
 
 const buildItemCaption = (item) => {
-    return `${item.title}\n× Tanggal: ${item.date}\n× Link: ${item.link}\n× Deskripsi: ${truncate(item.description)}`
+    return `${item.title}\n• Tanggal: ${item.date}\n• Link: ${item.link}`
 }
 
 const buildListCaption = (label, items, limit) => {

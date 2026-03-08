@@ -32,7 +32,7 @@ export default {
             const remaining = timeRemaining(expiry)
             const name = (u.name || 'user').trim()
             const mentionTag = `@${u.jid.split('@')[0]}`
-            return ` ${i + 1}. ${name} (${mentionTag})\n Exp: ${expiryStr} (sisa: ${remaining})`
+            return ` ${i + 1}. ${name} (${mentionTag})\n • Exp: ${expiryStr} (sisa: ${remaining})`
         }).join('\n\n')
 
         useLimit()

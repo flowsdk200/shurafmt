@@ -37,9 +37,9 @@ export default {
 
             const lines = picked.map((item, i) => (
                 `${i + 1}. ${item.nama || '-'}\n` +
-                `× Developer: ${item.developer || '-'}\n` +
-                `× Rating: ${item.rate2 || item.rate || '-'}\n` +
-                `× Link: ${item.link || '-'}`
+                `• Developer: ${item.developer || '-'}\n` +
+                `• Rating: ${item.rate2 || item.rate || '-'}\n` +
+                `• Link: ${item.link || '-'}`
             ))
 
             await sock.sendMessage(jid, {

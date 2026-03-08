@@ -178,12 +178,12 @@ const parseRows = (html) => {
 
 const formatItem = (item, index) => (
     `${index + 1}. ${item.title}\n` +
-    `× Type: ${item.section} (${item.type})\n` +
-    `× Author: ${item.author}\n` +
-    `× Views: ${item.views}\n` +
-    `× Genre: ${item.genre}\n` +
-    `× Title No: ${item.titleNo}\n` +
-    `× Link: ${item.link}`
+    `• Type: ${item.section} (${item.type})\n` +
+    `• Author: ${item.author}\n` +
+    `• Views: ${item.views}\n` +
+    `• Genre: ${item.genre}\n` +
+    `• Title No: ${item.titleNo}\n` +
+    `• Link: ${item.link}`
 )
 
 const buildCaption = (query, rows) => {

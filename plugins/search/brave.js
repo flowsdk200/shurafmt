@@ -76,9 +76,9 @@ const parseResults = (html) => {
 const formatResults = (query, results) => {
     const body = results.map((item, index) => (
         `${index + 1}. ${item.title}\n` +
-        `× Source: ${item.source}\n` +
-        `× Link: ${item.link}\n` +
-        `× Desc: ${item.desc}`
+        `• Source: ${item.source}\n` +
+        `• Link: ${item.link}\n` +
+        `• Desc: ${item.desc}`
     )).join('\n\n')
 
     return `${body}`

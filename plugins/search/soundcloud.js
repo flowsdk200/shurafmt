@@ -163,13 +163,13 @@ const fetchRows = async (query) => {
 
 const formatRow = (row, idx) =>
     `${idx + 1}. ${row.title}\n` +
-    `× Artist: ${row.artist}\n` +
-    `× Duration: ${row.duration}\n` +
-    `× Plays: ${row.plays}\n` +
-    `× Likes: ${row.likes}\n` +
-    `× Reposts: ${row.reposts}\n` +
-    `× Genre: ${row.genre}\n` +
-    `× Link: ${row.link}`
+    `• Artist: ${row.artist}\n` +
+    `• Duration: ${row.duration}\n` +
+    `• Plays: ${row.plays}\n` +
+    `• Likes: ${row.likes}\n` +
+    `• Reposts: ${row.reposts}\n` +
+    `• Genre: ${row.genre}\n` +
+    `• Link: ${row.link}`
 
 const buildCaption = (query, rows) =>
     rows.map((row, idx) => formatRow(row, idx)).join('\n\n')

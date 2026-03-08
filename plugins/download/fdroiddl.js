@@ -183,11 +183,11 @@ const parseFileInfo = (urlString) => {
 }
 
 const buildCaption = ({ fileName, packageId, versionCode, size, mime, link }) => (
-    `\`\`\`× File: ${fileName}\n` +
-    `× Package: ${packageId}\n` +
-    `× Version: ${versionCode}\n` +
-    `× Size: ${size}\n` +
-    `× Mime: ${mime}\`\`\``
+    `\`\`\`• File: ${fileName}\n` +
+    `• Package: ${packageId}\n` +
+    `• Version: ${versionCode}\n` +
+    `• Size: ${size}\n` +
+    `• Mime: ${mime}\`\`\``
 )
 
 export default {

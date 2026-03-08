@@ -301,19 +301,19 @@ const fetchYoutubeProfile = async (aboutUrl) => {
 const buildCaption = (m) => ([
     `\`\`\`YOUTUBE STALK ${m.title.toUpperCase()}`,
     '',
-    `× Handle: ${m.handle}`,
-    `× Channel ID: ${m.channelId}`,
-    `× Subscribers: ${m.subscribers}`,
-    `× Videos: ${m.videos}`,
-    `× Views: ${m.views}`,
-    `× Joined: ${m.joined}`,
-    `× Country: ${toSafe(m.country)}`,
-    `× Family Safe: ${toSafe(m.isFamilySafe)}`,
-    `× Keywords: ${toSafe(m.keywords)}`,
-    `× Banner: ${toSafe(m.banner)}`,
-    `× Channel URL: ${m.channelUrl}`,
-    `× Description: ${toSafe(m.description, '[empty]')}`,
-    `× Source: ${m.source}\`\`\``
+    `• Handle: ${m.handle}`,
+    `• Channel ID: ${m.channelId}`,
+    `• Subscribers: ${m.subscribers}`,
+    `• Videos: ${m.videos}`,
+    `• Views: ${m.views}`,
+    `• Joined: ${m.joined}`,
+    `• Country: ${toSafe(m.country)}`,
+    `• Family Safe: ${toSafe(m.isFamilySafe)}`,
+    `• Keywords: ${toSafe(m.keywords)}`,
+    `• Banner: ${toSafe(m.banner)}`,
+    `• Channel URL: ${m.channelUrl}`,
+    `• Description: ${toSafe(m.description, '[empty]')}`,
+    `• Source: ${m.source}\`\`\``
 ].join('\n'))
 
 export default {

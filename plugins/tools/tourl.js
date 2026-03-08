@@ -109,9 +109,9 @@ export default {
             await sock.sendMessage(jid, {
                 text:
                     `\`\`\`✅ Upload successful\n\n` +
-                    `× Type: ${mimetype}\n` +
-                    `× Size: ${formatSize(buffer.length)}\n` +
-                    `× Link: ${url}\`\`\``
+                    `• Type: ${mimetype}\n` +
+                    `• Size: ${formatSize(buffer.length)}\n` +
+                    `• Link: ${url}\`\`\``
             }, { quoted: msg })
         } catch (err) {
             await react('❌')

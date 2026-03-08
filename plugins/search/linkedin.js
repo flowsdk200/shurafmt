@@ -227,9 +227,9 @@ const fetchImageBuffer = async (url) => {
 const formatResults = (query, results) => {
     const body = results.map((item, index) => (
         `${index + 1}. ${item.title}\n` +
-        `× Source: ${item.source}\n` +
-        `× Desc: ${item.desc}\n` +
-        `× Link: ${item.link}`
+        `• Source: ${item.source}\n` +
+        `• Desc: ${item.desc}\n` +
+        `• Link: ${item.link}`
     )).join('\n\n')
 
     return `${body}`

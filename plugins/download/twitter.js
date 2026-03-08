@@ -30,13 +30,13 @@ const buildCaption = (data = {}) => {
 
     return (
         `\`\`\`✅ TWITTER/X\n\n` +
-        `× Author: ${name}\n` +
-        `× Username: ${username}\n` +
-        `× Verified: ${verified}\n` +
-        `× Likes: ${formatNumber(stats.likes)}\n` +
-        `× Retweets: ${formatNumber(stats.retweets)}\n` +
-        `× Replies: ${formatNumber(stats.replies)}\n` +
-        `× Views: ${formatNumber(stats.views)}\`\`\``
+        `• Author: ${name}\n` +
+        `• Username: ${username}\n` +
+        `• Verified: ${verified}\n` +
+        `• Likes: ${formatNumber(stats.likes)}\n` +
+        `• Retweets: ${formatNumber(stats.retweets)}\n` +
+        `• Replies: ${formatNumber(stats.replies)}\n` +
+        `• Views: ${formatNumber(stats.views)}\`\`\``
     )
 }
 

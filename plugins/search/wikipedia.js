@@ -144,9 +144,9 @@ const formatResults = (items) => items.map((item, index) => {
 
     return (
         `${index + 1}. ${title}\n` +
-        `× Description: ${description}\n` +
-        `× Summary: ${excerpt}\n` +
-        `× Link: ${link}`
+        `• Description: ${description}\n` +
+        `• Summary: ${excerpt}\n` +
+        `• Link: ${link}`
     )
 }).join('\n\n')
 

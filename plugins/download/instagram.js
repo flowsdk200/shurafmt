@@ -27,20 +27,20 @@ const formatCaption = (result) => {
     if (type === 'story') {
         return (
             `\`\`\`✅ INSTAGRAM STORY\n\n` +
-            `× Author: ${authorLine}\n` +
-            `× Verified: ${verified}\n` +
-            `× Followers: ${followers}\`\`\``
+            `• Author: ${authorLine}\n` +
+            `• Verified: ${verified}\n` +
+            `• Followers: ${followers}\`\`\``
         )
     }
 
     return (
         `\`\`\`✅ INSTAGRAM ${result?.type.toUpperCase()}\n\n` +
-        `× Title: ${title}\n` +
-        `× Author: ${authorLine}\n` +
-        `× Verified: ${verified}\n` +
-        `× Followers: ${followers}\n` +
-        `× Likes: ${likes}\n` +
-        `× Comments: ${comments}\`\`\``
+        `• Title: ${title}\n` +
+        `• Author: ${authorLine}\n` +
+        `• Verified: ${verified}\n` +
+        `• Followers: ${followers}\n` +
+        `• Likes: ${likes}\n` +
+        `• Comments: ${comments}\`\`\``
     )
 }
 

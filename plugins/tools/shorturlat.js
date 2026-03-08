@@ -76,9 +76,9 @@ export default {
 
             await reply(
                 '```SHORTLINK\n\n' +
-                '× Source: ShortURL.at\n' +
-                `× Original: ${target.toString()}\n` +
-                `× Short: ${shortUrl}` +
+                '• Source: ShortURL.at\n' +
+                `• Original: ${target.toString()}\n` +
+                `• Short: ${shortUrl}` +
                 '```'
             )
 

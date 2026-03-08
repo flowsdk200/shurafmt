@@ -166,10 +166,10 @@ const formatItem = (item, idx) => {
     const desc = cleanText(item.subtitle) || '-'
     return (
         `${idx + 1}. ${item.title}\n` +
-        `× Developer: ${item.developer}\n` +
-        `× Rating: ${item.rating}\n` +
-        `× Desc: ${desc}\n` +
-        `× Link: ${item.link}`
+        `• Developer: ${item.developer}\n` +
+        `• Rating: ${item.rating}\n` +
+        `• Desc: ${desc}\n` +
+        `• Link: ${item.link}`
     )
 }
 

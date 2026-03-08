@@ -87,7 +87,7 @@ export default {
             const mentionedJid = ownerJid ? [sender, ownerJid] : [sender]
 
             const caption =
-                `\`\`\`× Total fitur: ${totalMenu}\`\`\``
+                `\`\`\`• Total fitur: ${totalMenu}\`\`\``
 
             await sock.sendMessage(jid, {
                 document: ppBuffer,

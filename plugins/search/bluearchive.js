@@ -244,7 +244,7 @@ const renderCaption = (character, guide) => {
         const costArr = Array.isArray(skill?.cost) ? skill.cost : []
         const cost = costArr.length ? costArr[0] : '-'
         return (
-            `× Skill ${idx + 1}: ${normalizeText(skill?.name || '-')} (${normalizeText(skill?.type || '-')}, Cost: ${cost})\n` +
+            `• Skill ${idx + 1}: ${normalizeText(skill?.name || '-')} (${normalizeText(skill?.type || '-')}, Cost: ${cost})\n` +
             `  Desc: ${resolveSkillDescription(skill)}`
         )
     })
@@ -255,26 +255,26 @@ const renderCaption = (character, guide) => {
     const lines = [
         `BLUE ARCHIVE: ${normalizeText(character?.name || '-').toUpperCase()}`,
         '',
-        `× URL Key: ${normalizeText(character?.url || '-')}`,
-        `× Type: ${normalizeText(character?.type || '-')}`,
-        `× Role: ${normalizeText(character?.role || '-')}`,
-        `× Position: ${normalizeText(character?.position || '-')}`,
-        `× Family Name: ${normalizeText(profile?.familyName || '-')}`,
-        `× Age: ${normalizeText(profile?.age || '-')}`,
-        `× Height: ${normalizeText(profile?.height || '-')}`,
-        `× Hobby: ${normalizeText(profile?.hobby || '-')}`,
-        `× School: ${normalizeText(profile?.school || '-')}`,
-        `× Club: ${normalizeText(profile?.club || '-')}`,
-        `× Weapon: ${normalizeText(profile?.weaponName || weapon?.name || '-')}`,
-        `× Weapon Type: ${normalizeText(profile?.weaponType || weapon?.type || '-')}`,
-        `× CV: ${normalizeText(profile?.CV || '-')}`,
-        `× Bio: ${stripSkillMarkup(character?.bio || '-')}`,
+        `• URL Key: ${normalizeText(character?.url || '-')}`,
+        `• Type: ${normalizeText(character?.type || '-')}`,
+        `• Role: ${normalizeText(character?.role || '-')}`,
+        `• Position: ${normalizeText(character?.position || '-')}`,
+        `• Family Name: ${normalizeText(profile?.familyName || '-')}`,
+        `• Age: ${normalizeText(profile?.age || '-')}`,
+        `• Height: ${normalizeText(profile?.height || '-')}`,
+        `• Hobby: ${normalizeText(profile?.hobby || '-')}`,
+        `• School: ${normalizeText(profile?.school || '-')}`,
+        `• Club: ${normalizeText(profile?.club || '-')}`,
+        `• Weapon: ${normalizeText(profile?.weaponName || weapon?.name || '-')}`,
+        `• Weapon Type: ${normalizeText(profile?.weaponType || weapon?.type || '-')}`,
+        `• CV: ${normalizeText(profile?.CV || '-')}`,
+        `• Bio: ${stripSkillMarkup(character?.bio || '-')}`,
         '',
-        `× Weapon Name: ${normalizeText(weapon?.name || '-')}`,
-        `× Weapon Desc: ${stripSkillMarkup(weapon?.desc || '-')}`,
-        `× Weapon ATK: ${formatNumber(weapon?.attack)} (+${formatNumber(weapon?.attackAdd)})`,
-        `× Weapon HP: ${formatNumber(weapon?.hp)} (+${formatNumber(weapon?.hpAdd)})`,
-        `× Weapon HEAL: ${formatNumber(weapon?.heal)} (+${formatNumber(weapon?.healAdd)})`,
+        `• Weapon Name: ${normalizeText(weapon?.name || '-')}`,
+        `• Weapon Desc: ${stripSkillMarkup(weapon?.desc || '-')}`,
+        `• Weapon ATK: ${formatNumber(weapon?.attack)} (+${formatNumber(weapon?.attackAdd)})`,
+        `• Weapon HP: ${formatNumber(weapon?.hp)} (+${formatNumber(weapon?.hpAdd)})`,
+        `• Weapon HEAL: ${formatNumber(weapon?.heal)} (+${formatNumber(weapon?.healAdd)})`,
         ''
     ]
 
@@ -283,19 +283,19 @@ const renderCaption = (character, guide) => {
         lines.push('')
     }
 
-    lines.push(`× Skill Priority: ${normalizeText(skillprio?.['General Skill Priority'] || '-')}`)
-    lines.push(`× Early-Mid Invest: ${normalizeText(skillprio?.['Early to Mid Game investments'] || '-')}`)
-    lines.push(`× Pre UE40: ${normalizeText(skillprio?.['Recommended Investment pre UE40'] || '-')}`)
-    lines.push(`× UE40: ${normalizeText(skillprio?.['Recommended Investment UE40'] || '-')}`)
-    lines.push(`× Notes: ${normalizeText(skillprio?.Notes || '-')}`)
+    lines.push(`• Skill Priority: ${normalizeText(skillprio?.['General Skill Priority'] || '-')}`)
+    lines.push(`• Early-Mid Invest: ${normalizeText(skillprio?.['Early to Mid Game investments'] || '-')}`)
+    lines.push(`• Pre UE40: ${normalizeText(skillprio?.['Recommended Investment pre UE40'] || '-')}`)
+    lines.push(`• UE40: ${normalizeText(skillprio?.['Recommended Investment UE40'] || '-')}`)
+    lines.push(`• Notes: ${normalizeText(skillprio?.Notes || '-')}`)
 
     if (normalizeText(skillprio?.['Additional Notes'])) {
-        lines.push(`× Additional Notes: ${normalizeText(skillprio['Additional Notes'])}`)
+        lines.push(`• Additional Notes: ${normalizeText(skillprio['Additional Notes'])}`)
     }
 
-    if (guideTitle) lines.push(`× Guide Title: ${guideTitle}`)
-    if (guideLink) lines.push(`× Guide Link: ${guideLink}`)
-    lines.push(`× Link: https://bluearchive.gg/characters/${normalizeText(character?.url || '-')}`)
+    if (guideTitle) lines.push(`• Guide Title: ${guideTitle}`)
+    if (guideLink) lines.push(`• Guide Link: ${guideLink}`)
+    lines.push(`• Link: https://bluearchive.gg/characters/${normalizeText(character?.url || '-')}`)
 
     return `\`\`\`${lines.join('\n')}\`\`\``
 }

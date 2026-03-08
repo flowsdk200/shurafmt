@@ -152,33 +152,33 @@ const buildCaption = ({ profile, latestRepo, topRepo }) => {
 
     return (
         `GITHUB STALK ${name.toUpperCase()}\n\n` +
-        `\`\`\`× Username: ${login}\n` +
-        `× ID: ${id}\n` +
-        `× Node ID: ${nodeId}\n` +
-        `× Type: ${type}\n` +
-        `× Site Admin: ${siteAdmin}\n` +
-        `× Hireable: ${hireable}\n` +
-        `× Company: ${company}\n` +
-        `× Blog: ${blog}\n` +
-        `× Location: ${location}\n` +
-        `× Email: ${email}\n` +
-        `× Twitter: ${twitter}\n` +
-        `× Bio: ${bio}\n` +
-        `× Public Repos: ${repos}\n` +
-        `× Public Gists: ${gists}\n` +
-        `× Followers: ${followers}\n` +
-        `× Following: ${following}\n` +
-        `× Created: ${created}\n` +
-        `× Updated: ${updated}\n` +
-        `× Latest Repo: ${latestName}\n` +
-        `× Latest Repo Stars: ${latestStar}\n` +
-        `× Latest Repo Forks: ${latestFork}\n` +
-        `× Latest Repo Lang: ${latestLang}\n` +
-        `× Latest Repo Updated: ${latestUpdated}\n` +
-        `× Top Repo: ${topName}\n` +
-        `× Top Repo Stars: ${topStar}\n` +
-        `× Top Repo Forks: ${topFork}\n` +
-        `× Link: ${profileUrl}\`\`\``
+        `\`\`\`• Username: ${login}\n` +
+        `• ID: ${id}\n` +
+        `• Node ID: ${nodeId}\n` +
+        `• Type: ${type}\n` +
+        `• Site Admin: ${siteAdmin}\n` +
+        `• Hireable: ${hireable}\n` +
+        `• Company: ${company}\n` +
+        `• Blog: ${blog}\n` +
+        `• Location: ${location}\n` +
+        `• Email: ${email}\n` +
+        `• Twitter: ${twitter}\n` +
+        `• Bio: ${bio}\n` +
+        `• Public Repos: ${repos}\n` +
+        `• Public Gists: ${gists}\n` +
+        `• Followers: ${followers}\n` +
+        `• Following: ${following}\n` +
+        `• Created: ${created}\n` +
+        `• Updated: ${updated}\n` +
+        `• Latest Repo: ${latestName}\n` +
+        `• Latest Repo Stars: ${latestStar}\n` +
+        `• Latest Repo Forks: ${latestFork}\n` +
+        `• Latest Repo Lang: ${latestLang}\n` +
+        `• Latest Repo Updated: ${latestUpdated}\n` +
+        `• Top Repo: ${topName}\n` +
+        `• Top Repo Stars: ${topStar}\n` +
+        `• Top Repo Forks: ${topFork}\n` +
+        `• Link: ${profileUrl}\`\`\``
     )
 }
 

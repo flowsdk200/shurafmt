@@ -64,16 +64,16 @@ const buildResultLine = (story, idx, categoryMap, keepShortDesc = false) => {
 
     return (
         `${idx}. ${title}\n` +
-        `× Author: ${author}\n` +
-        `× Category: ${categories}\n` +
-        `× Part: ${part || '-'} part\n` +
-        `× Read: ${reads}\n` +
-        `× Vote: ${votes}\n` +
-        `× Comment: ${comments}\n` +
-        `× Update: ${updated}\n` +
-        `× Mature: ${story.mature ? 'yes' : 'no'}\n` +
-        `× Link: ${story.url || '-'}\n` +
-        `× Description: ${description}`
+        `• Author: ${author}\n` +
+        `• Category: ${categories}\n` +
+        `• Part: ${part || '-'} part\n` +
+        `• Read: ${reads}\n` +
+        `• Vote: ${votes}\n` +
+        `• Comment: ${comments}\n` +
+        `• Update: ${updated}\n` +
+        `• Mature: ${story.mature ? 'yes' : 'no'}\n` +
+        `• Link: ${story.url || '-'}\n` +
+        `• Description: ${description}`
     )
 }
 

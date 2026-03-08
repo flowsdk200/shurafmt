@@ -192,7 +192,7 @@ const parseResults = (html) => {
 }
 
 const formatCaption = (item, idx) =>
-    `${idx + 1}. ${item.title}\n× Source: ${item.source}\n× Desc: ${item.desc}\n× Link: ${item.link}`
+    `${idx + 1}. ${item.title}\n• Source: ${item.source}\n• Desc: ${item.desc}\n• Link: ${item.link}`
 
 const fetchHtml = async (query) => {
     const encoded = encodeURIComponent(query)

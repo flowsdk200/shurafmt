@@ -252,20 +252,20 @@ const buildCaption = (m) => {
 
     return (
         `\`\`\`X STALK ${m.name.toUpperCase()}\n\n` +
-        `× Username: @${m.username}\n` +
-        `× User ID: ${m.id || '-'}\n` +
-        `× Created: ${formatDate(m.createdAt)}\n` +
-        `× Verified: ${m.verified ? 'yes' : 'no'}\n` +
-        `× Protected: ${m.protected ? 'yes' : 'no'}\n` +
-        `× Followers: ${formatNumber(m.followers)}\n` +
-        `× Following: ${formatNumber(m.following)}\n` +
-        `× Tweets: ${formatNumber(m.tweets)}\n` +
-        `× Listed: ${formatNumber(m.listed)}\n` +
-        `× Likes: ${formatNumber(m.likes)}\n` +
-        `× Media Count: ${formatNumber(m.mediaCount)}\n` +
-        `× Professional: ${prof}\n` +
-        `× Bio: ${bio}\n` +
-        `× Link: https://x.com/${m.username}\`\`\``
+        `• Username: @${m.username}\n` +
+        `• User ID: ${m.id || '-'}\n` +
+        `• Created: ${formatDate(m.createdAt)}\n` +
+        `• Verified: ${m.verified ? 'yes' : 'no'}\n` +
+        `• Protected: ${m.protected ? 'yes' : 'no'}\n` +
+        `• Followers: ${formatNumber(m.followers)}\n` +
+        `• Following: ${formatNumber(m.following)}\n` +
+        `• Tweets: ${formatNumber(m.tweets)}\n` +
+        `• Listed: ${formatNumber(m.listed)}\n` +
+        `• Likes: ${formatNumber(m.likes)}\n` +
+        `• Media Count: ${formatNumber(m.mediaCount)}\n` +
+        `• Professional: ${prof}\n` +
+        `• Bio: ${bio}\n` +
+        `• Link: https://x.com/${m.username}\`\`\``
     )
 }
 

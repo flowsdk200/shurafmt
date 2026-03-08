@@ -222,16 +222,16 @@ const formatResult = (payload, resolved) => {
 
     return (
         `\`\`\`JADWAL SHOLAT ${resolved.city.toUpperCase()}, ${resolved.country.toUpperCase()}\n\n` +
-        `× Lokasi   : ${resolved.address}\n` +
-        `× Timezone : ${cleanText(meta.timezone) || '-'}\n` +
-        `× Metode   : ${methodName}\n\n` +
-        `× Imsak    : ${cleanTime(timings.Imsak) || '-'}\n` +
-        `× Subuh    : ${cleanTime(timings.Fajr) || '-'}\n` +
-        `× Terbit   : ${cleanTime(timings.Sunrise) || '-'}\n` +
-        `× Dzuhur   : ${cleanTime(timings.Dhuhr) || '-'}\n` +
-        `× Ashar    : ${cleanTime(timings.Asr) || '-'}\n` +
-        `× Maghrib  : ${cleanTime(timings.Maghrib) || '-'}\n` +
-        `× Isya     : ${cleanTime(timings.Isha) || '-'}\`\`\``
+        `• Lokasi   : ${resolved.address}\n` +
+        `• Timezone : ${cleanText(meta.timezone) || '-'}\n` +
+        `• Metode   : ${methodName}\n\n` +
+        `• Imsak    : ${cleanTime(timings.Imsak) || '-'}\n` +
+        `• Subuh    : ${cleanTime(timings.Fajr) || '-'}\n` +
+        `• Terbit   : ${cleanTime(timings.Sunrise) || '-'}\n` +
+        `• Dzuhur   : ${cleanTime(timings.Dhuhr) || '-'}\n` +
+        `• Ashar    : ${cleanTime(timings.Asr) || '-'}\n` +
+        `• Maghrib  : ${cleanTime(timings.Maghrib) || '-'}\n` +
+        `• Isya     : ${cleanTime(timings.Isha) || '-'}\`\`\``
     )
 }
 

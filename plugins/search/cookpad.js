@@ -158,11 +158,11 @@ const buildCaption = (query, rows) => {
                 : row.ingredients
 
             return `${idx + 1}. ${row.title}\n` +
-                `× Author: ${row.author}\n` +
-                `× Waktu: ${row.duration}\n` +
-                `× Porsi: ${row.servings}\n` +
-                `× Bahan: ${ingredients}\n` +
-                `× Link: ${row.link}\n`
+                `• Author: ${row.author}\n` +
+                `• Waktu: ${row.duration}\n` +
+                `• Porsi: ${row.servings}\n` +
+                `• Bahan: ${ingredients}\n` +
+                `• Link: ${row.link}\n`
         })
         .join('\n')
 

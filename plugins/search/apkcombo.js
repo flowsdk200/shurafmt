@@ -180,13 +180,13 @@ const fetchSearchHtml = async (query) => {
 const formatRows = (rows) => rows
     .map((item, idx) => (
         `${idx + 1}. ${item.title}\n` +
-        `× Developer: ${item.developer}\n` +
-        `× Category: ${item.category}\n` +
-        `× Package: ${item.package}\n` +
-        `× Rating: ${item.rating}\n` +
-        `× Size: ${item.size}\n` +
-        `× Downloads: ${item.downloads}\n` +
-        `× Link: ${item.link}`
+        `• Developer: ${item.developer}\n` +
+        `• Category: ${item.category}\n` +
+        `• Package: ${item.package}\n` +
+        `• Rating: ${item.rating}\n` +
+        `• Size: ${item.size}\n` +
+        `• Downloads: ${item.downloads}\n` +
+        `• Link: ${item.link}`
     ))
     .join('\n\n')
 

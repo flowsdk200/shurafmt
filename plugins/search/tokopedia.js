@@ -101,10 +101,10 @@ const toDisplayItem = (item = {}) => {
 
 const formatItem = (item, index) =>
     `${index + 1}. ${item.title}\n` +
-    `× Harga: ${item.price}\n` +
-    `× Toko: ${item.shop} (${item.city})\n` +
-    `× Rating: ${item.rating}\n` +
-    `× Link: ${item.link}`
+    `• Harga: ${item.price}\n` +
+    `• Toko: ${item.shop} (${item.city})\n` +
+    `• Rating: ${item.rating}\n` +
+    `• Link: ${item.link}`
 
 const fetchTokopedia = async (query) => {
     const params = buildSearchParams(query)

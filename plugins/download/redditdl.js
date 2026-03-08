@@ -538,7 +538,7 @@ const buildCaption = (post, media) => {
     const comments = formatNumber(post?.num_comments)
     const mediaType = media?.type === 'album' ? 'Album' : media?.type === 'image' ? 'Image' : 'Video'
     const durationLine = media?.type === 'video'
-        ? `× Duration: ${formatDuration(media?.duration)}\n`
+        ? `• Duration: ${formatDuration(media?.duration)}\n`
         : ''
     const resolution = media?.height && media?.width ? `${media.height}x${media.width}` : '-'
     const nsfw = post?.over_18 ? 'Yes' : 'No'
@@ -547,13 +547,13 @@ const buildCaption = (post, media) => {
     const postUrl = permalink ? `https://www.reddit.com${permalink}` : cleanText(post?.url || '-')
 
     return (
-        `\`\`\`× Title: ${title}\n` +
-        `× Subreddit: ${subreddit}\n` +
-        `× Author: ${author}\n` +
-        `× Upvotes: ${ups}\n` +
-        `× Comments: ${comments}\n` +
-        `× NSFW: ${nsfw}\n` +
-        `× Spoiler: ${spoiler}\`\`\``
+        `\`\`\`• Title: ${title}\n` +
+        `• Subreddit: ${subreddit}\n` +
+        `• Author: ${author}\n` +
+        `• Upvotes: ${ups}\n` +
+        `• Comments: ${comments}\n` +
+        `• NSFW: ${nsfw}\n` +
+        `• Spoiler: ${spoiler}\`\`\``
     )
 }
 

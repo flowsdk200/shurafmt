@@ -206,17 +206,17 @@ const fetchImageBuffer = async (url) => {
 
 const formatItem = (item, idx) =>
     `${idx + 1}. ${item.title}\n` +
-    `× Version: ${item.version || '-'}\n` +
-    `× Developer: ${item.developer || '-'}\n` +
-    `× Rating: ${item.rating || '-'}\n` +
-    `× Updated: ${item.updated || '-'}\n` +
-    `× Platform: ${item.platform || '-'}\n` +
-    `× Size: ${item.size || '-'}\n` +
-    `× License: ${item.license || '-'}\n` +
-    `× Category: ${item.category || '-'}\n` +
-    `× Desc: ${item.desc || '-'}\n` +
-    `× Link: ${item.link}\n` +
-    `× Download: ${item.download || '-'}`
+    `• Version: ${item.version || '-'}\n` +
+    `• Developer: ${item.developer || '-'}\n` +
+    `• Rating: ${item.rating || '-'}\n` +
+    `• Updated: ${item.updated || '-'}\n` +
+    `• Platform: ${item.platform || '-'}\n` +
+    `• Size: ${item.size || '-'}\n` +
+    `• License: ${item.license || '-'}\n` +
+    `• Category: ${item.category || '-'}\n` +
+    `• Desc: ${item.desc || '-'}\n` +
+    `• Link: ${item.link}\n` +
+    `• Download: ${item.download || '-'}`
 
 export default {
     name: 'softmany',

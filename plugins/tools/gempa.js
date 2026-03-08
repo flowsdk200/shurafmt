@@ -18,14 +18,14 @@ const toDateTime = (tanggal = '', jam = '') => {
 
 const formatGempa = (gempa = {}) => {
     return (
-        `❖ Tanggal: ${safeText(gempa.Tanggal)}\n` +
-        `❖ Waktu: ${toDateTime(gempa.Tanggal, gempa.Jam)}\n` +
-        `❖ Magnitudo: ${safeText(gempa.Magnitude)}\n` +
-        `❖ Kedalaman: ${safeText(gempa.Kedalaman)}\n` +
-        `❖ Lokasi: ${safeText(gempa.Wilayah)}\n` +
-        `❖ Koordinat: ${safeText(gempa.Lintang)} ${safeText(gempa.Bujur)}\n` +
-        `❖ Potensi: ${safeText(gempa.Potensi)}\n` +
-        `❖ Dirasakan: ${safeText(gempa.Dirasakan)}`
+        `• Tanggal: ${safeText(gempa.Tanggal)}\n` +
+        `• Waktu: ${toDateTime(gempa.Tanggal, gempa.Jam)}\n` +
+        `• Magnitudo: ${safeText(gempa.Magnitude)}\n` +
+        `• Kedalaman: ${safeText(gempa.Kedalaman)}\n` +
+        `• Lokasi: ${safeText(gempa.Wilayah)}\n` +
+        `• Koordinat: ${safeText(gempa.Lintang)} ${safeText(gempa.Bujur)}\n` +
+        `• Potensi: ${safeText(gempa.Potensi)}\n` +
+        `• Dirasakan: ${safeText(gempa.Dirasakan)}`
     )
 }
 

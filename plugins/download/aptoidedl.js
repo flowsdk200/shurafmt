@@ -231,14 +231,14 @@ const probeFile = async (url) => {
 }
 
 const buildCaption = (info, size) =>
-    `\`\`\`× Title: ${info.title}\n` +
-    `× Package: ${info.package}\n` +
-    `× Developer: ${info.developer}\n` +
-    `× Version: ${info.version} (${info.versionCode})\n` +
-    `× Rating: ${info.rating}\n` +
-    `× Downloads: ${info.downloads}\n` +
-    `× Size: ${size}\n` +
-    `× Malware: ${info.malware}\`\`\``
+    `\`\`\`• Title: ${info.title}\n` +
+    `• Package: ${info.package}\n` +
+    `• Developer: ${info.developer}\n` +
+    `• Version: ${info.version} (${info.versionCode})\n` +
+    `• Rating: ${info.rating}\n` +
+    `• Downloads: ${info.downloads}\n` +
+    `• Size: ${size}\n` +
+    `• Malware: ${info.malware}\`\`\``
 
 export default {
     name: 'aptoidedl',

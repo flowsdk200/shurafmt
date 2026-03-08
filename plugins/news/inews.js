@@ -3,8 +3,8 @@ import { load } from 'cheerio'
 
 const FEED_URL = 'https://www.inews.id/feed'
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-const DEFAULT_LIMIT = 10
-const MAX_LIMIT = 10
+const DEFAULT_LIMIT = 15
+const MAX_LIMIT = 15
 const IMAGE_EXTENSIONS = /\.(jpe?g|png|webp|gif|bmp|svg|avif|heic|heif)(\?|$)/i
 const VIDEO_EXTENSIONS = /\.(3gp|avi|flv|m4v|mkv|mov|mp4|mpg|mpeg|m3u8|webm|wmv|ogv)(\?|$)/i
 
@@ -153,7 +153,7 @@ const parseItems = (xmlText) => {
 }
 
 const formatItem = ({ title, link, date, description, category }) =>
-    `${title}${category ? `\n× Kategori: ${category}` : ''}\n× Tanggal: ${toNewsDate(date)}\n× Link: ${link}\n× Deskripsi: ${truncate(stripHtml(description))}`
+    `${title}${category ? `\n• Kategori: ${category}` : ''}\n• Tanggal: ${toNewsDate(date)}\n• Link: ${link}`
 
 const buildMessage = (items, limit, label) =>
     items.slice(0, limit).map((item, index) => `\`\`\`${index + 1}. ${formatItem(item)}\`\`\``).join('\n\n')

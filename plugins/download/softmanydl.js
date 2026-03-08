@@ -240,10 +240,10 @@ const buildCaption = ({
     resolvedUrl,
     decodedUrl
 }) => (
-    `\`\`\`× Title: ${title || '-'}\n` +
-    `× File: ${fileName}\n` +
-    `× Size: ${size}\n` +
-    `× Mime: ${mime}\`\`\``
+    `\`\`\`• Title: ${title || '-'}\n` +
+    `• File: ${fileName}\n` +
+    `• Size: ${size}\n` +
+    `• Mime: ${mime}\`\`\``
 )
 
 export default {

@@ -130,8 +130,8 @@ export default {
 
             const lines = [
                 `✅ @${senderId.split('@')[0]} sekarang AFK\n`,
-                `× Alasan: ${reason}`,
-                `× Waktu: ${formatTime(startAt, true)}`
+                `• Alasan: ${reason}`,
+                `• Waktu: ${formatTime(startAt, true)}`
             ]
 
             await sock.sendMessage(jid, {
@@ -163,8 +163,8 @@ export default {
                 await sock.sendMessage(jid, {
                     text:
                         `🎉 @${senderId.split('@')[0]} telah kembali dari AFK\n\n` +
-                        `× Total AFK: ${formatDuration(now - new Date(selfAfk.startAt).getTime())}\n` +
-                        `× Kembali: ${formatTime(now, true)}`,
+                        `• Total AFK: ${formatDuration(now - new Date(selfAfk.startAt).getTime())}\n` +
+                        `• Kembali: ${formatTime(now, true)}`,
                     mentions: [senderId]
                 }, { quoted: msg })
             }
@@ -212,9 +212,9 @@ export default {
 
                 lines.push(
                     `⚠️ Jangan tag @${rec.userId.split('@')[0]} dia sedang AFK\n\n` +
-                    `× Alasan: ${normalizeText(rec.reason, DEFAULT_REASON)}\n` +
-                    `× Durasi AFK: ${formatDuration(now - new Date(rec.startAt).getTime())}\n` +
-                    `× Sejak: ${formatTime(rec.startAt, true)}`
+                    `• Alasan: ${normalizeText(rec.reason, DEFAULT_REASON)}\n` +
+                    `• Durasi AFK: ${formatDuration(now - new Date(rec.startAt).getTime())}\n` +
+                    `• Sejak: ${formatTime(rec.startAt, true)}`
                 )
                 mentions.push(rec.userId)
             }

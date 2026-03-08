@@ -2,8 +2,8 @@ import axios from 'axios'
 
 const API_BASE = 'https://berita-indo-api-next.vercel.app/api'
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-const DEFAULT_LIMIT = 10
-const MAX_LIMIT = 10
+const DEFAULT_LIMIT = 15
+const MAX_LIMIT = 15
 const VIDEO_EXT_RE = /\.(3gp|avi|flv|m4v|mkv|mov|mp4|mpg|mpeg|m3u8|webm|wmv|ogv)(\?|$)/i
 const IMAGE_EXT_RE = /\.(jpe?g|png|webp|gif|bmp|svg|avif|heic|heif|ico)(\?|$)/i
 
@@ -288,9 +288,8 @@ const formatItem = (item) => {
 
     return (
         `${title}\n` +
-        `× Tanggal: ${toNewsDate(rawDate)}\n` +
-        `× Link: ${String(item.link || item.url || '-')}`
-        + `\n× Deskripsi: ${desc}`
+        `• Tanggal: ${toNewsDate(rawDate)}\n` +
+        `• Link: ${String(item.link || item.url || '-')}`
     )
 }
 

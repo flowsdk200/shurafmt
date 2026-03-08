@@ -216,7 +216,7 @@ const parseDetail = (html, fallbackUrl) => {
     }
 }
 
-const rowLine = (label, value) => `× ${label}: ${cleanText(value) || '-'}`
+const rowLine = (label, value) => `• ${label}: ${cleanText(value) || '-'}`
 
 const buildCaption = (detail) => {
     const s = detail.specs || {}

@@ -1045,22 +1045,22 @@ const fetchFacebookProfileAuto = async (target) => {
 
 const buildCaption = (m) => {
     const lines = [
-        `× Name: ${m.name}`,
-        `× ID: ${m.id}`,
-        `× Username: @${m.username}`
+        `• Name: ${m.name}`,
+        `• ID: ${m.id}`,
+        `• Username: @${m.username}`
     ]
-    if (typeof m.isVerified === 'boolean') lines.push(`× Verified: ${m.isVerified ? 'yes' : 'no'}`)
-    if (Number.isFinite(m.followers)) lines.push(`× Followers: ${toCompact(m.followers)}`)
-    if (Number.isFinite(m.following)) lines.push(`× Following: ${toCompact(m.following)}`)
-    if (Number.isFinite(m.friends)) lines.push(`× Friends: ${toCompact(m.friends)}`)
-    if (Number.isFinite(m.likes)) lines.push(`× Likes: ${toCompact(m.likes)}`)
-    if (Number.isFinite(m.talkingAbout)) lines.push(`× Talking About: ${toCompact(m.talkingAbout)}`)
-    if (cleanText(m.category)) lines.push(`× Category: ${m.category}`)
-    if (cleanText(m.locale)) lines.push(`× Locale: ${m.locale}`)
-    if (cleanText(m.type)) lines.push(`× Type: ${m.type}`)
-    lines.push(`× Bio: ${m.bio}`)
-    if (cleanText(m.cover)) lines.push(`× Cover: ${m.cover}`)
-    lines.push(`× Link: ${m.profileUrl}`)
+    if (typeof m.isVerified === 'boolean') lines.push(`• Verified: ${m.isVerified ? 'yes' : 'no'}`)
+    if (Number.isFinite(m.followers)) lines.push(`• Followers: ${toCompact(m.followers)}`)
+    if (Number.isFinite(m.following)) lines.push(`• Following: ${toCompact(m.following)}`)
+    if (Number.isFinite(m.friends)) lines.push(`• Friends: ${toCompact(m.friends)}`)
+    if (Number.isFinite(m.likes)) lines.push(`• Likes: ${toCompact(m.likes)}`)
+    if (Number.isFinite(m.talkingAbout)) lines.push(`• Talking About: ${toCompact(m.talkingAbout)}`)
+    if (cleanText(m.category)) lines.push(`• Category: ${m.category}`)
+    if (cleanText(m.locale)) lines.push(`• Locale: ${m.locale}`)
+    if (cleanText(m.type)) lines.push(`• Type: ${m.type}`)
+    lines.push(`• Bio: ${m.bio}`)
+    if (cleanText(m.cover)) lines.push(`• Cover: ${m.cover}`)
+    lines.push(`• Link: ${m.profileUrl}`)
     return `\`\`\`FACEBOOK STALK ${cleanText(m.name).toUpperCase()}\n\n${lines.join('\n')}\`\`\``
 }
 

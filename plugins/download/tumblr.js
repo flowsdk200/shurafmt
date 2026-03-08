@@ -330,13 +330,13 @@ const formatDate = (input) => {
 }
 
 const buildCaption = (meta) =>
-    `\`\`\`× Title: ${meta.title}\n` +
-    `× Blog: ${meta.blog}\n` +
-    `× Posted: ${meta.date}\n` +
-    `× Notes: ${meta.notes}\n` +
-    `× Likes: ${meta.likes}\n` +
-    `× Reblogs: ${meta.reblogs}\n` +
-    `× Replies: ${meta.replies}\`\`\``
+    `\`\`\`• Title: ${meta.title}\n` +
+    `• Blog: ${meta.blog}\n` +
+    `• Posted: ${meta.date}\n` +
+    `• Notes: ${meta.notes}\n` +
+    `• Likes: ${meta.likes}\n` +
+    `• Reblogs: ${meta.reblogs}\n` +
+    `• Replies: ${meta.replies}\`\`\``
 
 const resolveTumblr = async (input) => {
     const first = await requestText(input)
