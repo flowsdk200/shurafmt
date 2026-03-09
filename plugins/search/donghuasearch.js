@@ -274,6 +274,25 @@ const fetchExpandedResults = async (query) => {
 
     fuzzyHits.sort((a, b) => b.score - a.score || a.title.localeCompare(b.title))
 
+    const tokens = getQueryTokens(query)
+    const strictMode = tokens.length >= 2
+    const strictHits = fuzzyHits.filter((item) => {
+        const title = normalizeSearchText(item.title)
+        return tokens.every((token) => title.includes(token))
+    })
+
+    if (strictMode && strictHits.length) {
+        const strictMerged = new Map()
+        for (const item of strictHits) {
+            strictMerged.set(item.url, {
+                ...(catalogByUrl.get(item.url) || {}),
+                ...item
+            })
+        }
+
+        return [...strictMerged.values()].slice(0, MAX_RESULTS)
+    }
+
     for (const item of fuzzyHits) {
         if (!merged.has(item.url)) merged.set(item.url, item)
         if (merged.size >= MAX_RESULTS) break
