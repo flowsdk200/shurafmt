@@ -4,6 +4,9 @@
   "description": "Advanced Baileys WhatsApp Framework",
   "main": "index.js",
   "type": "module",
+  "engines": {
+    "node": "25.8.0"
+  },
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js"
