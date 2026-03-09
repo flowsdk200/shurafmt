@@ -3,11 +3,18 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 
 const BASE_URL = 'https://donghuafilm.com'
-const SEARCH_URL = `${BASE_URL}/`
+const EXACT_SEARCH_URL = `${BASE_URL}/wp-json/wp/v2/search`
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36'
 const REQUEST_TIMEOUT = 30000
-const MAX_RESULTS = 10
+const MAX_RESULTS = 15
+const CATALOG_TTL = 6 * 60 * 60 * 1000
+const AZ_KEYS = ['0-9', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ']
+const STOP_WORDS = new Set(['the', 'and', 'of', 'season', 'movie', 'ova', 'ona', 'sub', 'subtitle', 'indonesia'])
 const execFileAsync = promisify(execFile)
+const catalogCache = {
+    expiresAt: 0,
+    items: []
+}
 
 const cleanText = (value) => String(value || '')
     .replace(/&#8211;/g, '-')
@@ -45,6 +52,18 @@ const toAbsoluteUrl = (value, base = BASE_URL) => {
     }
 }
 
+const normalizeSearchText = (value) => cleanText(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+
+const getQueryTokens = (query) => [...new Set(
+    normalizeSearchText(query)
+        .split(' ')
+        .map((part) => cleanText(part))
+        .filter((part) => part.length >= 2 && !STOP_WORDS.has(part))
+)]
+
 const buildCurlArgs = (url, { referer = `${BASE_URL}/`, textMode = true } = {}) => {
     const args = [
         '-L',
@@ -79,6 +98,15 @@ const fetchTextViaCurl = async (url, referer = `${BASE_URL}/`) => {
     }
 }
 
+const fetchJsonViaCurl = async (url, referer = `${BASE_URL}/`) => {
+    const text = await fetchTextViaCurl(url, referer)
+    try {
+        return JSON.parse(text)
+    } catch {
+        throw new Error('Respons JSON DonghuaFilm tidak valid')
+    }
+}
+
 const fetchBufferViaCurl = async (url, referer = `${BASE_URL}/`) => {
     try {
         const { stdout } = await execFileAsync('curl', buildCurlArgs(url, { referer, textMode: false }), {
@@ -93,17 +121,17 @@ const fetchBufferViaCurl = async (url, referer = `${BASE_URL}/`) => {
     }
 }
 
-const parseSearchCards = (html) => {
+const parseCatalogCards = (html) => {
     const $ = cheerio.load(String(html || ''))
     const rows = []
     const seen = new Set()
 
-    $('.listupd article.bs .bsx').each((_, el) => {
+    $('.listupd.azara article.bs .bsx, .listupd article.bs .bsx').each((_, el) => {
         const box = $(el)
-        const anchor = box.find('a').first()
+        const anchor = box.find('a[itemprop="url"]').first()
         const url = toAbsoluteUrl(anchor.attr('href'))
         const title = cleanText(anchor.attr('title') || box.find('.tt').first().clone().children().remove().end().text())
-        const image = toAbsoluteUrl(box.find('img').first().attr('src') || box.find('img').first().attr('data-src'))
+        const image = toAbsoluteUrl(box.find('img').first().attr('data-src') || box.find('img').first().attr('src'))
 
         if (!url || !title || seen.has(url)) return
         seen.add(url)
@@ -116,55 +144,142 @@ const parseSearchCards = (html) => {
             status: cleanText(box.find('.status').first().text() || box.find('.epx').first().text()) || '-'
         })
 
-        if (rows.length >= MAX_RESULTS) return false
     })
 
     return rows
 }
 
-const mergeUnique = (...groups) => {
-    const seen = new Set()
-    const rows = []
+const mapWithConcurrency = async (items, limit, iteratee) => {
+    const list = Array.from(items || [])
+    const results = new Array(list.length)
+    let cursor = 0
 
-    for (const group of groups) {
-        for (const item of group || []) {
-            const key = cleanText(item?.url)
-            if (!key || seen.has(key)) continue
-            seen.add(key)
-            rows.push(item)
-            if (rows.length >= MAX_RESULTS) return rows
+    const worker = async () => {
+        while (cursor < list.length) {
+            const index = cursor++
+            results[index] = await iteratee(list[index], index)
         }
+    }
+
+    const size = Math.min(Math.max(1, limit), list.length || 1)
+    await Promise.all(Array.from({ length: size }, () => worker()))
+    return results
+}
+
+const fetchAzPage = async (key) => parseCatalogCards(
+    await fetchTextViaCurl(`${BASE_URL}/az-list/?show=${encodeURIComponent(key)}`)
+)
+
+const getCatalogIndex = async () => {
+    if (catalogCache.expiresAt > Date.now() && catalogCache.items.length) {
+        return catalogCache.items
+    }
+
+    const groups = await mapWithConcurrency(AZ_KEYS, 4, async (key) => {
+        try {
+            return await fetchAzPage(key)
+        } catch {
+            return []
+        }
+    })
+
+    const merged = new Map()
+    for (const group of groups) {
+        for (const item of group) {
+            if (!merged.has(item.url)) merged.set(item.url, item)
+        }
+    }
+
+    catalogCache.items = [...merged.values()]
+    catalogCache.expiresAt = Date.now() + CATALOG_TTL
+    return catalogCache.items
+}
+
+const fetchExactSearch = async (query) => {
+    const url = `${EXACT_SEARCH_URL}?search=${encodeURIComponent(query)}&per_page=100&_fields=url,title,subtype,type`
+    const json = await fetchJsonViaCurl(url)
+    if (!Array.isArray(json)) return []
+
+    const rows = []
+    const seen = new Set()
+
+    for (const item of json) {
+        const link = toAbsoluteUrl(item?.url)
+        const title = cleanText(item?.title)
+        if (!link || !title || seen.has(link)) continue
+        if (cleanText(item?.subtype).toLowerCase() !== 'anime') continue
+        seen.add(link)
+        rows.push({ title, url: link })
     }
 
     return rows
 }
 
-const fetchSearchPage = async (query) => parseSearchCards(
-    await fetchTextViaCurl(`${SEARCH_URL}?s=${encodeURIComponent(query)}`)
-)
+const scoreSearchItem = (item, query) => {
+    const title = normalizeSearchText(item?.title)
+    const q = normalizeSearchText(query)
+    const tokens = getQueryTokens(query)
 
-const fetchExpandedResults = async (query) => {
-    const primary = await fetchSearchPage(query)
-    if (primary.length >= 2) return primary.slice(0, MAX_RESULTS)
+    if (!title || !q) return 0
 
-    const tokens = [...new Set(
-        cleanText(query)
-            .split(/\s+/)
-            .map((part) => cleanText(part))
-            .filter((part) => part.length >= 3)
-    )]
+    let score = 0
 
-    const relatedGroups = []
+    if (title === q) score += 4000
+    if (title.startsWith(q)) score += 2000
+    if (title.includes(q)) score += 1500
+
+    let matchedTokens = 0
     for (const token of tokens) {
-        if (cleanText(token).toLowerCase() === cleanText(query).toLowerCase()) continue
-        try {
-            relatedGroups.push(await fetchSearchPage(token))
-        } catch {
-            relatedGroups.push([])
+        if (!token) continue
+        const wholeWord = new RegExp(`(^|\\s)${token}(\\s|$)`, 'i')
+        if (wholeWord.test(title)) {
+            score += 300
+            matchedTokens += 1
+            continue
+        }
+
+        if (title.includes(token)) {
+            score += 120
+            matchedTokens += 1
         }
     }
 
-    return mergeUnique(primary, ...relatedGroups).slice(0, MAX_RESULTS)
+    if (tokens.length && matchedTokens === tokens.length) score += 600
+    return score
+}
+
+const fetchExpandedResults = async (query) => {
+    const [exactHits, catalog] = await Promise.all([
+        fetchExactSearch(query).catch(() => []),
+        getCatalogIndex()
+    ])
+
+    const merged = new Map()
+    const catalogByUrl = new Map(catalog.map((item) => [item.url, item]))
+
+    for (const item of exactHits) {
+        const mergedItem = {
+            ...(catalogByUrl.get(item.url) || {}),
+            ...item
+        }
+        merged.set(item.url, mergedItem)
+    }
+
+    const fuzzyHits = []
+    for (const item of catalog) {
+        const score = scoreSearchItem(item, query)
+        if (score <= 0) continue
+        fuzzyHits.push({ ...item, score })
+    }
+
+    fuzzyHits.sort((a, b) => b.score - a.score || a.title.localeCompare(b.title))
+
+    for (const item of fuzzyHits) {
+        if (!merged.has(item.url)) merged.set(item.url, item)
+        if (merged.size >= MAX_RESULTS) break
+    }
+
+    return [...merged.values()].slice(0, MAX_RESULTS)
 }
 
 const extractInfoMap = ($) => {
@@ -182,9 +297,97 @@ const extractInfoMap = ($) => {
     return info
 }
 
+const getUrlSlug = (value) => {
+    try {
+        const url = new URL(String(value || ''))
+        const parts = url.pathname.split('/').filter(Boolean)
+        return cleanText(parts[parts.length - 1] || '').toLowerCase()
+    } catch {
+        return ''
+    }
+}
+
+const getSeasonInfo = (fallback = {}) => {
+    const haystack = `${cleanText(fallback.title)} ${getUrlSlug(fallback.url)}`.toLowerCase()
+    const match = haystack.match(/season[\s-]*(\d{1,2})/i)
+    if (!match) return null
+
+    const number = String(Number(match[1]))
+    return {
+        number,
+        padded: number.padStart(2, '0')
+    }
+}
+
+const extractEpisodeNumber = (value) => {
+    const text = cleanText(value)
+    if (!text) return -1
+    const explicitEpisode = text.match(/episode[\s-]*(\d{1,4})/i)
+    if (explicitEpisode) return Number(explicitEpisode[1])
+    const firstNumber = text.match(/(\d{1,4})/)
+    return firstNumber ? Number(firstNumber[1]) : -1
+}
+
+const buildEpisodeCandidates = ($) => $('.eplister ul li a').toArray().map((el) => {
+    const anchor = $(el)
+    const numberText = cleanText(anchor.find('.epl-num').first().text())
+    const titleText = cleanText(anchor.find('.epl-title').first().text())
+    const href = toAbsoluteUrl(anchor.attr('href'))
+    const raw = `${titleText} ${href}`.toLowerCase()
+
+    return {
+        latestEpisode: numberText || titleText || '-',
+        latestEpisodeLink: href || '-',
+        episodeNumber: extractEpisodeNumber(numberText || titleText),
+        isEnd: /\bend\b/i.test(`${numberText} ${titleText}`),
+        raw
+    }
+}).filter((item) => item.latestEpisodeLink !== '-')
+
+const filterSeasonCandidates = (candidates, fallback = {}) => {
+    const season = getSeasonInfo(fallback)
+    if (!season) return candidates
+
+    const patterns = [
+        `season ${season.number}`,
+        `season ${season.padded}`,
+        `season-${season.number}`,
+        `season-${season.padded}`
+    ]
+
+    const filtered = candidates.filter((item) => patterns.some((pattern) => item.raw.includes(pattern)))
+    return filtered.length ? filtered : candidates
+}
+
+const extractLatestEpisode = ($, fallback = {}) => {
+    const scoped = filterSeasonCandidates(buildEpisodeCandidates($), fallback)
+    if (!scoped.length) {
+        return {
+            latestEpisode: '-',
+            latestEpisodeLink: '-'
+        }
+    }
+
+    const ordered = [...scoped].sort((a, b) => {
+        if (a.episodeNumber !== b.episodeNumber) return a.episodeNumber - b.episodeNumber
+        if (a.isEnd !== b.isEnd) return Number(a.isEnd) - Number(b.isEnd)
+        return a.latestEpisode.localeCompare(b.latestEpisode)
+    })
+
+    const best = ordered[ordered.length - 1] || scoped[scoped.length - 1]
+
+    return {
+        latestEpisode: best.latestEpisode || '-',
+        latestEpisodeLink: best.latestEpisodeLink || '-'
+    }
+}
+
 const parseDetailPage = (html, fallback = {}) => {
     const $ = cheerio.load(String(html || ''))
     const info = extractInfoMap($)
+    const latest = extractLatestEpisode($, fallback)
+    const type = info.type || fallback.type || '-'
+    const isMovie = /\bmovie\b/i.test(type)
 
     const image = toAbsoluteUrl(
         $('.thumbook .thumb img').first().attr('data-src')
@@ -197,11 +400,12 @@ const parseDetailPage = (html, fallback = {}) => {
         image: image || fallback.image || null,
         rating: cleanText($('[itemprop="ratingValue"]').attr('content') || $('.rating strong').first().text().replace(/^Rating\s*/i, '')) || '-',
         status: info.status || fallback.status || '-',
-        type: info.type || fallback.type || '-',
+        type,
         episodes: info.episodes || '-',
         duration: info.duration || '-',
         studio: info.studio || '-',
-        latestEpisodeLink: toAbsoluteUrl($('.epcurlast').first().closest('a').attr('href'), fallback.url || BASE_URL) || '-',
+        latestEpisode: isMovie ? '-' : latest.latestEpisode,
+        latestEpisodeLink: isMovie ? '-' : latest.latestEpisodeLink,
         genres: $('.genxed a').map((_, el) => cleanText($(el).text())).get().filter(Boolean).join(', ') || '-',
         link: fallback.url || '-'
     }
@@ -238,9 +442,11 @@ const formatItem = (item, index) => (
     `• Status: ${item.status}\n` +
     `• Tipe: ${item.type}\n` +
     `• Episode: ${item.episodes}\n` +
+    `• Episode Terbaru: ${item.latestEpisode}\n` +
     `• Durasi: ${item.duration}\n` +
     `• Genre: ${item.genres}\n` +
-    `• Link: ${item.latestEpisodeLink}`
+    `• Link Seri: ${item.link}\n` +
+    `• Link Episode Terbaru: ${item.latestEpisodeLink}`
 )
 
 export default {
@@ -268,10 +474,7 @@ export default {
                 }, { quoted: msg })
             }
 
-            const rows = []
-            for (const item of hits) {
-                rows.push(await fetchDetail(item))
-            }
+            const rows = await mapWithConcurrency(hits, 3, (item) => fetchDetail(item))
 
             const caption = `\`\`\`${rows.map(formatItem).join('\n\n')}\`\`\``
             await sendResults(sock, jid, msg, caption, rows[0]?.image)
