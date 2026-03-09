@@ -16,7 +16,7 @@ const config = {
     onlyOwner: false,
     onlyPremium: false,
     mongoUri: 'mongodb+srv://shurafmt:shurafmtwa@shurafmt.nctmax.mongodb.net/shurafmt?appName=shurafmt',
-    redisUrl: 'redis://default:msCsKa5PlgrfhmzQeXpz18Tk8eSHLOD8@redis-16718.c44.us-east-1-2.ec2.cloud.redislabs.com:16718',
+    redisUrl: 'redis://default:V5dYiLtRfTg7RTD8xoVehbTLubpp3C4H@redis-16016.c1.eu-west-1-3.ec2.cloud.redislabs.com:16016',
     r2: {
         endpoint: 'https://db98bdb7df43af92900b66532329d8ff.r2.cloudflarestorage.com',
         accessKeyId: '126cb5003d5c6d3b096f7ff7c4676c65',
