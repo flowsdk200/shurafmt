@@ -5,7 +5,7 @@ const API_URL = 'https://donghuafilm.com/wp-json/wp/v2/search'
 const BASE_URL = 'https://donghuafilm.com'
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36'
 const REQUEST_TIMEOUT = 30000
-const MAX_RESULTS = 10
+const MAX_RESULTS = 5
 
 const cleanText = (value) => String(value || '')
     .replace(/&#8211;/g, '-')
@@ -37,7 +37,7 @@ const normalizeQuery = (rawInput) => {
         }
     }
 
-    return text
+    return text.replace(/^[^A-Za-z0-9]+/, '')
 }
 
 const toAbsoluteUrl = (value, base = BASE_URL) => {
@@ -206,6 +206,38 @@ const fetchImageBuffer = async (url) => {
     }
 }
 
+const sendResults = async (sock, jid, msg, caption, firstImage) => {
+    if (!firstImage) {
+        throw new Error('Gambar DonghuaFilm tidak ditemukan')
+    }
+
+    const imageBuffer = firstImage ? await fetchImageBuffer(firstImage) : null
+
+    if (imageBuffer) {
+        try {
+            return await sock.sendMessage(jid, {
+                image: imageBuffer,
+                caption
+            }, { quoted: msg })
+        } catch {
+            // try remote URL below
+        }
+    }
+
+    if (firstImage) {
+        try {
+            return await sock.sendMessage(jid, {
+                image: { url: firstImage },
+                caption
+            }, { quoted: msg })
+        } catch {
+            throw new Error('Gagal kirim hasil DonghuaFilm sebagai gambar')
+        }
+    }
+    
+    throw new Error('Gagal kirim hasil DonghuaFilm sebagai gambar')
+}
+
 const formatItem = (item, index) => (
     `${index + 1}. ${item.title}\n` +
     `• Rating: ${item.rating}\n` +
@@ -266,31 +298,15 @@ export default {
             }
 
             const caption = `\`\`\`${rows.map(formatItem).join('\n\n')}\`\`\``
-            const firstImage = rows[0]?.image
-            const imageBuffer = firstImage ? await fetchImageBuffer(firstImage) : null
-
-            if (imageBuffer) {
-                await sock.sendMessage(jid, {
-                    image: imageBuffer,
-                    caption
-                }, { quoted: msg })
-            } else if (firstImage) {
-                await sock.sendMessage(jid, {
-                    image: { url: firstImage },
-                    caption
-                }, { quoted: msg })
-            } else {
-                await sock.sendMessage(jid, {
-                    text: caption
-                }, { quoted: msg })
-            }
+            await sendResults(sock, jid, msg, caption, rows[0]?.image)
 
             useLimit()
             await react('✅')
         } catch (err) {
             await react('❌')
+            const detail = err?.message || err?.code || String(err) || 'Unknown error'
             await sock.sendMessage(jid, {
-                text: `❌ Error: ${err?.message || 'Unknown error'}`
+                text: `❌ Error: ${detail}`
             }, { quoted: msg })
         }
     }
