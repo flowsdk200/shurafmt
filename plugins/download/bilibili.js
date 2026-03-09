@@ -9,6 +9,8 @@ import ffmpegPath from 'ffmpeg-static'
 const REQUEST_TIMEOUT = 30000
 const MEDIA_TIMEOUT = 120000
 const VIDEO_BUFFER_LIMIT = 100 * 1024 * 1024
+const BILIBILI_API_V2 = 'https://api.bilibili.tv/intl/gateway/web/v2'
+const BILIBILI_API_WEB = 'https://api.bilibili.tv/intl/gateway/web'
 const BILIBILI_COOKIE = [
     'bili_jct=25e909241987fa9506a3d693b6c4e069',
     'bsource=search_google',
@@ -36,24 +38,180 @@ const sanitizeFileName = (value) => {
     return text || 'bilibili-video'
 }
 
-const extractVideoUrl = (input) => {
+const parseSource = (input) => {
     const text = cleanText(input)
-    if (!text) return ''
+    if (!text) return null
 
     if (!/^https?:\/\//i.test(text)) {
         const numeric = text.match(/^\d+$/)?.[0]
-        return numeric ? `https://www.bilibili.tv/video/${numeric}` : ''
+        return numeric ? {
+            type: 'video',
+            sourceUrl: `https://www.bilibili.tv/video/${numeric}`,
+            aid: numeric,
+            seasonId: '',
+            epId: ''
+        } : null
     }
 
     try {
         const parsed = new URL(text)
-        if (!/(^|\.)bilibili\.tv$/i.test(parsed.hostname)) return ''
-        if (!/^\/(?:id\/)?video\/\d+/.test(parsed.pathname) && !/^\/(?:id\/)?play\/\d+(?:\/\d+)?/.test(parsed.pathname)) return ''
+        if (!/(^|\.)bilibili\.tv$/i.test(parsed.hostname)) return null
+        const videoMatch = parsed.pathname.match(/^\/(?:id\/)?video\/(\d+)/)
+        const playMatch = parsed.pathname.match(/^\/(?:id\/)?play\/(\d+)(?:\/(\d+))?/)
+        if (!videoMatch && !playMatch) return null
         parsed.search = ''
         parsed.hash = ''
-        return parsed.toString()
+        if (videoMatch) {
+            return {
+                type: 'video',
+                sourceUrl: parsed.toString(),
+                aid: videoMatch[1],
+                seasonId: '',
+                epId: ''
+            }
+        }
+        return {
+            type: 'play',
+            sourceUrl: parsed.toString(),
+            aid: '',
+            seasonId: playMatch[1],
+            epId: playMatch[2] || ''
+        }
     } catch {
-        return ''
+        return null
+    }
+}
+
+const fetchApi = async (baseUrl, path, params = {}) => {
+    const response = await axios.get(`${baseUrl}/${path}`, {
+        params,
+        timeout: REQUEST_TIMEOUT,
+        validateStatus: () => true,
+        headers: PAGE_HEADERS
+    })
+    if (response.status !== 200) {
+        throw new Error(`Bilibili API HTTP ${response.status}`)
+    }
+
+    const payload = response.data
+    const code = Number(payload?.code)
+    if (code !== 0) {
+        throw new Error(cleanText(payload?.message || payload?.msg || `Bilibili API code ${code}`) || `Bilibili API code ${code}`)
+    }
+    return payload?.data || {}
+}
+
+const fetchOgvSeasonInfo = async (seasonId) => {
+    const data = await fetchApi(BILIBILI_API_V2, 'ogv/play/season_info', { season_id: seasonId })
+    return data?.season || {}
+}
+
+const fetchOgvEpisodes = async (seasonId) => {
+    const data = await fetchApi(BILIBILI_API_V2, 'ogv/play/episodes', { season_id: seasonId })
+    return Array.isArray(data?.sections) ? data.sections : []
+}
+
+const resolveOgvEpisodeId = async (seasonId, epId = '') => {
+    if (cleanText(epId)) return cleanText(epId)
+    const season = await fetchOgvSeasonInfo(seasonId)
+    const fallbackEpId = cleanText(season?.view_history?.episode_id || season?.first_episode?.episode_id)
+    if (!fallbackEpId) throw new Error('Episode Bilibili tidak ditemukan')
+    return fallbackEpId
+}
+
+const flattenOgvEpisodes = (sections = []) => sections
+    .flatMap((section) => Array.isArray(section?.episodes) ? section.episodes : [])
+
+const buildOgvPlayUrlParams = (epId) => ({
+    ep_id: epId,
+    platform: 'html5_a',
+    qn: 64,
+    type: 0,
+    device: 'wap',
+    tf: 0,
+    s_locale: 'id_ID'
+})
+
+const normalizeIntlMediaUrl = (resource = {}) => {
+    const primary = cleanText(resource?.url)
+    if (primary) return primary
+    const backup = Array.isArray(resource?.backup_url) ? resource.backup_url.find((x) => cleanText(x)) : ''
+    return cleanText(backup || '')
+}
+
+const resolveOgvPlayStreams = (playurl = {}) => {
+    const videoOptions = Array.isArray(playurl?.video) ? playurl.video : []
+    const audioTracks = Array.isArray(playurl?.audio_resource) ? playurl.audio_resource : []
+
+    const normalizedOptions = videoOptions
+        .map((entry) => {
+            const resource = entry?.video_resource || {}
+            const quality = Number(resource?.quality) || 0
+            const url = normalizeIntlMediaUrl(resource)
+            return {
+                id: quality,
+                quality,
+                url,
+                audioQuality: Number(entry?.audio_quality) || 0,
+                label: cleanText(entry?.stream_info?.desc_words || entry?.stream_info?.desc_text || ''),
+                codecId: Number(resource?.codec_id) || 0
+            }
+        })
+        .filter((entry) => entry.url && entry.codecId === 7)
+
+    const selected = pickQualityOption(normalizedOptions.map((entry) => ({
+        value: entry.quality,
+        url: entry.url,
+        label: entry.label,
+        audioQuality: entry.audioQuality
+    })))
+    const fallbackVideo = normalizedOptions
+        .filter((entry) => Number(entry.id) <= 32)
+        .sort((a, b) => (Number(b.id) || 0) - (Number(a.id) || 0))[0] || normalizedOptions[0] || null
+    const matchedVideo = normalizedOptions.find((entry) => Number(entry.id) === Number(selected?.value)) || fallbackVideo
+    const videoUrl = cleanText(matchedVideo?.url)
+    if (!videoUrl) {
+        throw new Error(`Stream video tidak tersedia | options=${normalizedOptions.length} dashVideo=0 selected=${Number(selected?.value) || 0} fallback=${Number(fallbackVideo?.id) || 0}`)
+    }
+
+    const preferredAudioId = Number(selected?.audioQuality) || Number(matchedVideo?.audioQuality) || 0
+    const audio = audioTracks.find((entry) => Number(entry?.id) === preferredAudioId) ||
+        [...audioTracks].sort((a, b) => (Number(b?.id) || 0) - (Number(a?.id) || 0))[0] ||
+        null
+    const audioUrl = normalizeIntlMediaUrl(audio)
+    if (!audioUrl) {
+        throw new Error(`Stream audio tidak tersedia | dashAudio=${audioTracks.length} preferredAudio=${preferredAudioId || 0}`)
+    }
+
+    return {
+        videoUrl,
+        audioUrl,
+        qualityLabel: cleanText(selected?.label || matchedVideo?.label || '-') || '-',
+        durationSeconds: Math.floor((Number(playurl?.duration) || 0) / 1000)
+    }
+}
+
+const fetchOgvPlayback = async (source) => {
+    const season = await fetchOgvSeasonInfo(source.seasonId)
+    const episodeId = await resolveOgvEpisodeId(source.seasonId, source.epId)
+    const sections = await fetchOgvEpisodes(source.seasonId)
+    const episodes = flattenOgvEpisodes(sections)
+    const episode = episodes.find((item) => cleanText(item?.episode_id) === episodeId) || {}
+    const playData = await fetchApi(BILIBILI_API_WEB, 'playurl', buildOgvPlayUrlParams(episodeId))
+    const playurl = playData?.playurl || {}
+    const streams = resolveOgvPlayStreams(playurl)
+    const titleBits = [
+        cleanText(season?.title),
+        cleanText(episode?.title_display || episode?.short_title_display)
+    ].filter(Boolean)
+
+    return {
+        title: cleanText(titleBits.join(' - ') || season?.title || episode?.title_display || 'bilibili-video'),
+        durationSeconds: streams.durationSeconds,
+        qualityLabel: streams.qualityLabel,
+        videoUrl: streams.videoUrl,
+        audioUrl: streams.audioUrl,
+        fileName: `${sanitizeFileName(titleBits.join(' - ') || season?.title || 'bilibili-video')}.mp4`
     }
 }
 
@@ -413,20 +571,10 @@ const formatDuration = (seconds) => {
     return `${m}:${String(s).padStart(2, '0')}`
 }
 
-const buildCaption = ({ archive, shareInfo, qualityLabel, sourceUrl }) => {
-    const titleRaw = cleanText(archive?.title || shareInfo?.title || '-')
-    const title = titleRaw.replace(/\s*\|\s*bilibili$/i, '') || '-'
-    const uploader = cleanText(archive?.uploader?.name || '-')
-    const uploaderId = cleanText(archive?.uploader?.mid || '-')
-    const views = cleanText(archive?.stat?.views || '-')
-    const likes = cleanText(archive?.stat?.like_count || '-')
-    const followers = cleanText(archive?.stat?.followers || '-')
-    const duration = formatDuration(archive?.duration)
-    const published = cleanText(archive?.formatted_pub_date || archive?.pub_date || '-')
-
+const buildCaption = ({ title, durationSeconds, qualityLabel }) => {
     return (
-        `\`\`\`• Title: ${title}\n` +
-        `• Duration: ${duration}\n` +
+        `\`\`\`• Title: ${cleanText(title || '-').replace(/\s*\|\s*bilibili$/i, '') || '-'}\n` +
+        `• Duration: ${formatDuration(durationSeconds)}\n` +
         `• Quality: ${qualityLabel}\`\`\``
     )
 }
@@ -437,9 +585,9 @@ export default {
     description: 'Download video Bilibili TV (video + audio)',
     execute: async ({ sock, msg, text, prefix, command, react, useLimit }) => {
         const jid = msg.key.remoteJid
-        const sourceUrl = extractVideoUrl(text)
+        const source = parseSource(text)
 
-        if (!sourceUrl) {
+        if (!source) {
             return sock.sendMessage(jid, {
                 text: `Contoh penggunaan:\n- ${prefix + command} https://www.bilibili.tv/video/4791938539323393`
             }, { quoted: msg })
@@ -448,28 +596,51 @@ export default {
         await react('⏳')
 
         try {
-            const { state, fallbackDash } = await fetchPageState(sourceUrl)
-            const streams = resolveStreams(state, fallbackDash)
+            let title = 'bilibili-video'
+            let durationSeconds = 0
+            let qualityLabel = '-'
+            let fileName = 'bilibili-video.mp4'
+            let videoUrl = ''
+            let audioUrl = ''
+
+            if (source.type === 'play') {
+                const playback = await fetchOgvPlayback(source)
+                title = playback.title
+                durationSeconds = playback.durationSeconds
+                qualityLabel = playback.qualityLabel
+                fileName = playback.fileName
+                videoUrl = playback.videoUrl
+                audioUrl = playback.audioUrl
+            } else {
+                const { state, fallbackDash } = await fetchPageState(source.sourceUrl)
+                const streams = resolveStreams(state, fallbackDash)
+                const archive = state?.ugc?.archive || {}
+                const shareInfo = state?.share?.shareInfo || {}
+                title = cleanText(archive?.title || shareInfo?.title || 'bilibili-video')
+                durationSeconds = Number(archive?.duration) || 0
+                qualityLabel = streams.qualityLabel
+                fileName = `${sanitizeFileName(title)}.mp4`
+                videoUrl = streams.videoUrl
+                audioUrl = streams.audioUrl
+            }
+
             const [videoDash, audioDash] = await Promise.all([
-                fetchMediaBuffer(streams.videoUrl, sourceUrl),
-                fetchMediaBuffer(streams.audioUrl, sourceUrl)
+                fetchMediaBuffer(videoUrl, source.sourceUrl),
+                fetchMediaBuffer(audioUrl, source.sourceUrl)
             ])
             const videoMp4 = await mergeDash(videoDash, audioDash)
 
-            const archive = state?.ugc?.archive || {}
-            const shareInfo = state?.share?.shareInfo || {}
             const caption = buildCaption({
-                archive,
-                shareInfo,
-                qualityLabel: streams.qualityLabel,
-                sourceUrl
+                title,
+                durationSeconds,
+                qualityLabel
             })
 
             if (videoMp4.length > VIDEO_BUFFER_LIMIT) {
                 await sock.sendMessage(jid, {
                     document: videoMp4,
                     mimetype: 'video/mp4',
-                    fileName: `${sanitizeFileName(archive?.title || shareInfo?.title || 'bilibili-video')}.mp4`,
+                    fileName,
                     caption
                 }, { quoted: msg })
             } else {
