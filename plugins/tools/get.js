@@ -2,6 +2,12 @@ import axios from 'axios'
 
 const asCode = (text) => `\`\`\`${String(text).slice(0, 50000)}\`\`\``
 
+const getExt = (value = '') => {
+    const clean = String(value || '').split('?')[0].split('#')[0]
+    const m = clean.match(/(\.[a-z0-9]{1,10})$/i)
+    return m ? m[1].toLowerCase() : ''
+}
+
 const getFileName = (res, targetUrl, fallbackExt = '') => {
     const cd = String(res?.headers?.['content-disposition'] || '')
     const match = cd.match(/filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i)
@@ -13,6 +19,55 @@ const getFileName = (res, targetUrl, fallbackExt = '') => {
     if (last) return decodeURIComponent(last)
 
     return `file${fallbackExt}`
+}
+
+const inferMediaType = (buf, res, targetUrl, declaredType = '') => {
+    const type = String(declaredType || '').toLowerCase().split(';')[0]
+    if (type && type !== 'application/octet-stream') return type
+
+    const fileName = getFileName(res, targetUrl)
+    const ext = getExt(fileName) || getExt(targetUrl.toString())
+    const hex = buf.subarray(0, 16).toString('hex')
+    const ascii = buf.subarray(0, 16).toString('ascii')
+
+    if (ascii.startsWith('OggS')) {
+        if (ext === '.ogv') return 'video/ogg'
+        return 'audio/ogg'
+    }
+
+    if (ascii.startsWith('ID3') || hex.startsWith('fffb') || hex.startsWith('fff3') || hex.startsWith('fff2')) {
+        return 'audio/mpeg'
+    }
+
+    if (ascii.startsWith('fLaC')) return 'audio/flac'
+    if (ascii.startsWith('RIFF') && buf.subarray(8, 12).toString('ascii') === 'WAVE') return 'audio/wav'
+    if (buf.subarray(4, 8).toString('ascii') === 'ftyp') {
+        if (['.m4a', '.aac'].includes(ext)) return 'audio/mp4'
+        return 'video/mp4'
+    }
+    if (hex.startsWith('1a45dfa3') || ext === '.webm') {
+        if (['.weba'].includes(ext)) return 'audio/webm'
+        return 'video/webm'
+    }
+
+    const byExt = {
+        '.oga': 'audio/ogg',
+        '.ogg': 'audio/ogg',
+        '.opus': 'audio/ogg',
+        '.mp3': 'audio/mpeg',
+        '.wav': 'audio/wav',
+        '.flac': 'audio/flac',
+        '.m4a': 'audio/mp4',
+        '.aac': 'audio/aac',
+        '.mp4': 'video/mp4',
+        '.m4v': 'video/mp4',
+        '.mov': 'video/quicktime',
+        '.mkv': 'video/x-matroska',
+        '.webm': 'video/webm',
+        '.ogv': 'video/ogg'
+    }
+
+    return byExt[ext] || type || 'application/octet-stream'
 }
 
 export default {
@@ -61,31 +116,32 @@ export default {
 
             const type = String(res.headers['content-type'] || 'text/plain').toLowerCase().split(';')[0]
             const buf = Buffer.from(res.data)
+            const mediaType = inferMediaType(buf, res, target, type)
 
-            if (type.includes('image/')) {
+            if (mediaType.includes('image/')) {
                 await sock.sendMessage(jid, { image: buf }, { quoted: msg })
-            } else if (type.includes('video/')) {
-                await sock.sendMessage(jid, { video: buf, mimetype: type }, { quoted: msg })
-            } else if (type.includes('audio/')) {
-                await sock.sendMessage(jid, { audio: buf, mimetype: type, ptt: false }, { quoted: msg })
-            } else if (type.includes('application/pdf')) {
+            } else if (mediaType.includes('video/')) {
+                await sock.sendMessage(jid, { video: buf, mimetype: mediaType }, { quoted: msg })
+            } else if (mediaType.includes('audio/')) {
+                await sock.sendMessage(jid, { audio: buf, mimetype: mediaType, ptt: false }, { quoted: msg })
+            } else if (mediaType.includes('application/pdf')) {
                 await sock.sendMessage(jid, {
                     document: buf,
-                    mimetype: type,
+                    mimetype: mediaType,
                     fileName: getFileName(res, target, '.pdf')
                 }, { quoted: msg })
             } else if (
-                type.includes('application/octet-stream') ||
-                type.includes('application/zip') ||
-                type.includes('application/x-') ||
-                type.includes('application/vnd')
+                mediaType.includes('application/octet-stream') ||
+                mediaType.includes('application/zip') ||
+                mediaType.includes('application/x-') ||
+                mediaType.includes('application/vnd')
             ) {
                 await sock.sendMessage(jid, {
                     document: buf,
-                    mimetype: type,
+                    mimetype: mediaType,
                     fileName: getFileName(res, target)
                 }, { quoted: msg })
-            } else if (type.includes('application/json')) {
+            } else if (mediaType.includes('application/json')) {
                 const s = buf.toString('utf8')
                 try {
                     await reply(asCode(JSON.stringify(JSON.parse(s), null, 2)))
