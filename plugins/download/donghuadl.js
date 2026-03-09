@@ -102,6 +102,20 @@ const decodeMirrorValue = (value) => {
     }
 }
 
+const extractLatestEpisodeLink = (html, baseUrl) => {
+    const latestHref = html.match(/<div[^>]+class="inepcx"[^>]*>\s*<a[^>]+href="([^"]+)"[\s\S]*?<span[^>]+class="epcur\s+epcurlast"[^>]*>/i)?.[1]
+    if (latestHref && latestHref !== '#') return toAbsoluteUrl(latestHref, baseUrl)
+
+    const directLatest = html.match(/<a[^>]+href="([^"]+)"[^>]*>\s*<span>\s*New Episode\s*<\/span>\s*<span[^>]+class="epcur\s+epcurlast"[^>]*>/i)?.[1]
+    if (directLatest) return toAbsoluteUrl(directLatest, baseUrl)
+
+    const episodeLinks = [...html.matchAll(/<a[^>]+href="([^"]+)"[^>]*>\s*<div class="epl-num">/gi)]
+        .map((match) => toAbsoluteUrl(match[1], baseUrl))
+        .filter(Boolean)
+
+    return episodeLinks[episodeLinks.length - 1] || ''
+}
+
 const extractVideoUrl = (html, baseUrl) => {
     const direct = html.match(/<source[^>]+src="([^"]+)"[^>]+type="video\/mp4"/i)?.[1]
     if (direct) return toAbsoluteUrl(direct, baseUrl)
@@ -137,6 +151,36 @@ const extractMeta = (html, finalUrl) => {
         title,
         thumbnail,
         videoUrl
+    }
+}
+
+const resolveEpisodePage = async (pageUrl) => {
+    const first = await requestText(pageUrl)
+    if (first.status !== 200 || !first.html) {
+        throw new Error(`DonghuaFilm HTTP ${first.status}`)
+    }
+
+    const initialVideoUrl = extractVideoUrl(first.html, first.finalUrl)
+    if (initialVideoUrl) {
+        return {
+            html: first.html,
+            finalUrl: first.finalUrl
+        }
+    }
+
+    const latestEpisodeUrl = extractLatestEpisodeLink(first.html, first.finalUrl)
+    if (!latestEpisodeUrl) {
+        throw new Error('Link episode terbaru tidak ditemukan di halaman seri DonghuaFilm.')
+    }
+
+    const second = await requestText(latestEpisodeUrl)
+    if (second.status !== 200 || !second.html) {
+        throw new Error(`DonghuaFilm episode HTTP ${second.status}`)
+    }
+
+    return {
+        html: second.html,
+        finalUrl: second.finalUrl
     }
 }
 
@@ -229,11 +273,7 @@ export default {
         await react('⏳')
 
         try {
-            const { status, html, finalUrl } = await requestText(pageUrl)
-            if (status !== 200 || !html) {
-                throw new Error(`DonghuaFilm HTTP ${status}`)
-            }
-
+            const { html, finalUrl } = await resolveEpisodePage(pageUrl)
             const meta = extractMeta(html, finalUrl)
             const fileId = extractPixeldrainId(meta.videoUrl)
             const fileInfo = await fetchPixeldrainInfo(fileId)
