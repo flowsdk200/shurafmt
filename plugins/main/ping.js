@@ -1,5 +1,4 @@
 import os from 'os'
-import fs from 'fs'
 import axios from 'axios'
 import { execSync } from 'child_process'
 import { performance } from 'perf_hooks'
@@ -11,6 +10,12 @@ const formatSize = (bytes) => {
     if (value >= 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(2)} MB`
     if (value >= 1024) return `${(value / 1024).toFixed(2)} KB`
     return `${value} B`
+}
+
+const formatMbps = (value) => {
+    const speed = Number(value || 0)
+    if (!speed || !Number.isFinite(speed)) return '-'
+    return `${speed.toFixed(speed >= 100 ? 0 : 2)} Mbps`
 }
 
 const styles = (text) => `\`\`\`${text}\`\`\``
@@ -34,7 +39,7 @@ const getUptime = (uptimeSeconds) => {
     const h = Math.floor((uptimeSeconds % (3600 * 24)) / 3600)
     const m = Math.floor((uptimeSeconds % 3600) / 60)
     const s = Math.floor(uptimeSeconds % 60)
-    return `${d}d ${h}h ${m}m ${s}s`
+    return `${d} days, ${h} hours, ${m} minutes, ${s} seconds`
 }
 
 const getProgressBar = (percent) => {
@@ -64,52 +69,65 @@ const getCpuSpeed = (cpus) => {
     return total / cpus.length
 }
 
-const readNetworkBytes = () => {
-    if (os.platform() !== 'linux') return null
+const benchmarkTransfer = async ({ method, url, bytes }) => {
+    const payload = method === 'POST' ? Buffer.alloc(bytes, 97) : null
+    const startedAt = performance.now()
 
-    try {
-        const raw = fs.readFileSync('/proc/net/dev', 'utf8')
-        const totals = raw
-            .split('\n')
-            .slice(2)
-            .map((line) => line.trim())
-            .filter(Boolean)
-            .reduce((acc, line) => {
-                const [ifaceRaw, statsRaw] = line.split(':')
-                const iface = String(ifaceRaw || '').trim()
-                if (!iface || iface === 'lo') return acc
+    const response = method === 'POST'
+        ? await axios.post(url, payload, {
+            timeout: 15000,
+            validateStatus: () => true,
+            headers: {
+                'content-type': 'application/octet-stream',
+                Accept: '*/*'
+            }
+        })
+        : await axios.get(url, {
+            timeout: 15000,
+            validateStatus: () => true,
+            responseType: 'arraybuffer',
+            headers: {
+                Accept: '*/*'
+            }
+        })
 
-                const stats = String(statsRaw || '').trim().split(/\s+/)
-                const rx = Number(stats[0] || 0)
-                const tx = Number(stats[8] || 0)
-
-                return {
-                    rx: acc.rx + rx,
-                    tx: acc.tx + tx
-                }
-            }, { rx: 0, tx: 0 })
-
-        return totals
-    } catch {
-        return null
+    if (response.status !== 200) {
+        throw new Error(`${method} HTTP ${response.status}`)
     }
+
+    const elapsedMs = performance.now() - startedAt
+    const transferredBytes = method === 'POST'
+        ? bytes
+        : Buffer.from(response.data || []).length
+
+    if (!elapsedMs || !transferredBytes) {
+        throw new Error(`${method} benchmark kosong`)
+    }
+
+    return (transferredBytes * 8) / (elapsedMs / 1000) / 1000000
 }
 
 const getNetworkSpeed = async () => {
-    const start = readNetworkBytes()
-    if (!start) return { down: '-', up: '-' }
+    try {
+        const [downMbps, upMbps] = await Promise.all([
+            benchmarkTransfer({
+                method: 'GET',
+                url: 'https://speed.cloudflare.com/__down?bytes=8000000',
+                bytes: 8000000
+            }),
+            benchmarkTransfer({
+                method: 'POST',
+                url: 'https://speed.cloudflare.com/__up',
+                bytes: 1000000
+            })
+        ])
 
-    await new Promise(resolve => setTimeout(resolve, 250))
-
-    const end = readNetworkBytes()
-    if (!end) return { down: '-', up: '-' }
-
-    const downBytesPerSec = Math.max(0, (end.rx - start.rx) * 4)
-    const upBytesPerSec = Math.max(0, (end.tx - start.tx) * 4)
-
-    return {
-        down: `${formatSize(downBytesPerSec)}/s`,
-        up: `${formatSize(upBytesPerSec)}/s`
+        return {
+            down: formatMbps(downMbps),
+            up: formatMbps(upMbps)
+        }
+    } catch {
+        return { down: '-', up: '-' }
     }
 }
 
@@ -208,8 +226,7 @@ export default {
         const msgLatencyMs = Math.round(performance.now() - startedAt)
 
         let text = ''
-        text += `• Uptime OS: ${getUptime(os.uptime())}\n`
-        text += `• Uptime Bot: ${getUptime(process.uptime())}\n`
+        text += `• Uptime: ${getUptime(os.uptime())}\n`
         text += `• Latency: ${msgLatencyMs} ms\n`
         text += `• IP: ${maskIp(geo.ip)}\n`
         text += `• Region: ${geo.region}\n`
@@ -225,12 +242,10 @@ export default {
         text += `• RAM: ${formatSize(totalMem)}\n`
         text += `• Digunakan: ${formatSize(usedMem)} (${memPercent.toFixed(1)}%)\n`
         text += `• Tersedia: ${formatSize(freeMem)} (${freePercent.toFixed(1)}%)\n`
-        text += `• Disk: ${formatSize(disk.used)} / ${formatSize(disk.total)}\n`
-        text += `• Disk Load: ${getProgressBar(disk.percent)}\n`
         text += `• Download: ${network.down}\n`
         text += `• Upload: ${network.up}\n`
         text += `• NodeJS: ${process.version}\n`
-        text += `• Memory RSS: ${formatSize(process.memoryUsage().rss)}\n`
+        text += `• Memory RSS: ${formatSize(process.memoryUsage().rss)}\n\n`
         text += `• Reported: ${new Date().toLocaleString('id-ID')}`
 
         await sock.sendMessage(msg.key.remoteJid, { text: styles(text) }, { quoted: msg })
