@@ -26,6 +26,20 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 const styles = (text) => `\`\`\`${text}\`\`\``
 
+const buildMenuQuoted = (channelJid, ownerNumber, commandName = 'MENU') => ({
+    key: {
+        remoteJid: `${String(ownerNumber || '0').replace(/[^0-9]/g, '') || '0'}-1625305606@g.us`,
+        participant: '0@s.whatsapp.net'
+    },
+    message: {
+        newsletterAdminInviteMessage: {
+            newsletterJid: channelJid || '120363210705976689@newsletter',
+            newsletterName: '',
+            caption: String(commandName || 'MENU').toUpperCase()
+        }
+    }
+})
+
 const getPP = async (sock, sender, thumb) => {
     try {
         const ppUrl = await sock.profilePictureUrl(sender, 'image').catch(() => '')
@@ -134,8 +148,9 @@ export default {
                 },
                 viewOnce: true,
             }
+            const quotedMenu = buildMenuQuoted(config.channelJid, owner, 'menu')
             await sleep(3000)
-            await sock.sendMessage(msg.key.remoteJid, buttonflows, { userJid: sender, quoted: msg })
+            await sock.sendMessage(msg.key.remoteJid, buttonflows, { userJid: sender, quoted: quotedMenu })
             await react('✅')
         } catch (error) {
             console.error('Error sending menu:', error)
