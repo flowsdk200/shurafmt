@@ -240,8 +240,7 @@ const formatItem = (item, index) => (
     `• Episode: ${item.episodes}\n` +
     `• Durasi: ${item.duration}\n` +
     `• Genre: ${item.genres}\n` +
-    `• Link: ${item.link}\n` +
-    `• Download: ${item.latestEpisodeLink}`
+    `• Link: ${item.latestEpisodeLink}`
 )
 
 export default {
