@@ -3,7 +3,7 @@ import * as cheerio from 'cheerio'
 
 const SEARCH_BASE_URL = 'https://shopee.co.id/search'
 const BASE_URL = 'https://shopee.co.id'
-const MAX_RESULTS = 15
+const MAX_RESULTS = 10
 const REQUEST_TIMEOUT = 45000
 const DETAIL_TIMEOUT = 20000
 const DETAIL_CONCURRENCY = 3
@@ -63,6 +63,14 @@ const parseJsonLdBlocks = (html) => {
     }
 
     return rows
+}
+
+const normalizeDetailImage = (value) => {
+    const raw = cleanText(value)
+    if (!raw) return null
+    if (/^https?:\/\//i.test(raw)) return raw
+    if (/^[\w-]+\.[\w-]+\/file\//i.test(raw)) return `https://${raw}`
+    return null
 }
 
 const parseCard = ($, $item) => {
@@ -164,20 +172,30 @@ const fetchSearchHtml = async (query) => {
     throw lastErr || new Error('Gagal mengambil HTML Shopee')
 }
 
-const extractShopNameFromDetail = (html) => {
+const extractDetailMeta = (html) => {
     for (const block of parseJsonLdBlocks(html)) {
         const type = cleanText(block?.['@type']).toLowerCase()
         if (type !== 'product') continue
 
         const sellerName = cleanText(block?.offers?.seller?.name || block?.seller?.name)
-        if (sellerName) return sellerName
+        const detailImage = Array.isArray(block?.image)
+            ? normalizeDetailImage(block.image[0])
+            : normalizeDetailImage(block?.image)
+
+        return {
+            shop: sellerName || '-',
+            image: detailImage || null
+        }
     }
 
-    return '-'
+    return {
+        shop: '-',
+        image: null
+    }
 }
 
-const fetchShopName = async (link, userAgent) => {
-    if (!link) return '-'
+const fetchDetailMeta = async (link, userAgent) => {
+    if (!link) return { shop: '-', image: null }
 
     const { data, status } = await axios.get(link, {
         timeout: DETAIL_TIMEOUT,
@@ -192,11 +210,11 @@ const fetchShopName = async (link, userAgent) => {
         }
     })
 
-    if (status !== 200) return '-'
-    return extractShopNameFromDetail(data)
+    if (status !== 200) return { shop: '-', image: null }
+    return extractDetailMeta(data)
 }
 
-const enrichRowsWithShop = async (rows, userAgent) => {
+const enrichRowsWithDetail = async (rows, userAgent) => {
     const output = rows.map((row) => ({ ...row }))
     let cursor = 0
 
@@ -206,7 +224,9 @@ const enrichRowsWithShop = async (rows, userAgent) => {
             const row = output[index]
 
             try {
-                row.shop = await fetchShopName(row.link, userAgent)
+                const detail = await fetchDetailMeta(row.link, userAgent)
+                row.shop = detail.shop || row.shop || '-'
+                row.image = detail.image || row.image || null
             } catch {
                 row.shop = row.shop || '-'
             }
@@ -220,6 +240,24 @@ const enrichRowsWithShop = async (rows, userAgent) => {
 
     await Promise.all(workers)
     return output
+}
+
+const fetchImageBuffer = async (url, referer) => {
+    const target = normalizeImage(url) || normalizeDetailImage(url)
+    if (!target) return null
+
+    const { data, status } = await axios.get(target, {
+        responseType: 'arraybuffer',
+        timeout: DETAIL_TIMEOUT,
+        validateStatus: () => true,
+        headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Referer': referer || BASE_URL
+        }
+    })
+
+    if (status !== 200 || !data) return null
+    return Buffer.from(data)
 }
 
 const formatItem = (item, index) =>
@@ -250,7 +288,7 @@ export default {
         try {
             const { html, userAgent } = await fetchSearchHtml(q)
             const parsedRows = parseResults(html)
-            const rows = await enrichRowsWithShop(parsedRows, userAgent)
+            const rows = await enrichRowsWithDetail(parsedRows, userAgent)
 
             if (!rows.length) {
                 await react('❌')
@@ -265,8 +303,9 @@ export default {
 
             const firstImage = rows[0]?.image
             if (firstImage) {
+                const imageBuffer = await fetchImageBuffer(firstImage, rows[0]?.link)
                 await sock.sendMessage(jid, {
-                    image: { url: firstImage },
+                    image: imageBuffer || { url: firstImage },
                     caption: `\`\`\`${caption}\`\`\``
                 }, { quoted: msg })
             } else {
