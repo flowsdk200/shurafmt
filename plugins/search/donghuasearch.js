@@ -455,18 +455,25 @@ const sendResults = async (sock, jid, msg, caption, firstImage) => {
     throw new Error('Gagal ambil gambar DonghuaFilm')
 }
 
-const formatItem = (item, index) => (
-    `${index + 1}. ${item.title}\n` +
-    `• Rating: ${item.rating}\n` +
-    `• Status: ${item.status}\n` +
-    `• Tipe: ${item.type}\n` +
-    `• Episode: ${item.episodes}\n` +
-    `• Episode Terbaru: ${item.latestEpisode}\n` +
-    `• Durasi: ${item.duration}\n` +
-    `• Genre: ${item.genres}\n` +
-    `• Link Seri: ${item.link}\n` +
-    `• Link Episode Terbaru: ${item.latestEpisodeLink}`
-)
+const formatItem = (item, index) => {
+    const lines = [
+        `${index + 1}. ${item.title}`,
+        `• Rating: ${item.rating}`,
+        `• Status: ${item.status}`,
+        `• Tipe: ${item.type}`,
+        `• Episode: ${item.episodes}`,
+        `• Durasi: ${item.duration}`,
+        `• Genre: ${item.genres}`,
+        `• Link Seri: ${item.link}`
+    ]
+
+    if (item.latestEpisode !== '-' && item.latestEpisodeLink !== '-') {
+        lines.splice(5, 0, `• Episode Terbaru: ${item.latestEpisode}`)
+        lines.push(`• Link Episode Terbaru: ${item.latestEpisodeLink}`)
+    }
+
+    return lines.join('\n')
+}
 
 export default {
     name: 'donghua',
