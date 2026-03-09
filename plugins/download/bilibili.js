@@ -8,6 +8,7 @@ import ffmpegPath from 'ffmpeg-static'
 
 const REQUEST_TIMEOUT = 30000
 const MEDIA_TIMEOUT = 120000
+const VIDEO_BUFFER_LIMIT = 100 * 1024 * 1024
 const BILIBILI_COOKIE = [
     'bili_jct=25e909241987fa9506a3d693b6c4e069',
     'bsource=search_google',
@@ -29,6 +30,11 @@ const PAGE_HEADERS = {
 }
 
 const cleanText = (value) => String(value || '').replace(/\s+/g, ' ').trim()
+
+const sanitizeFileName = (value) => {
+    const text = cleanText(value).replace(/[\\/:*?"<>|]+/g, '').trim()
+    return text || 'bilibili-video'
+}
 
 const extractVideoUrl = (input) => {
     const text = cleanText(input)
@@ -420,13 +426,8 @@ const buildCaption = ({ archive, shareInfo, qualityLabel, sourceUrl }) => {
 
     return (
         `\`\`\`• Title: ${title}\n` +
-        `• Uploader: ${uploader}\n` +
         `• Duration: ${duration}\n` +
-        `• Quality: ${qualityLabel}\n` +
-        `• Views: ${views}\n` +
-        `• Likes: ${likes}\n` +
-        `• Followers: ${followers}\n` +
-        `• Publish: ${published}`
+        `• Quality: ${qualityLabel}\`\`\``
     )
 }
 
@@ -464,11 +465,20 @@ export default {
                 sourceUrl
             })
 
-            await sock.sendMessage(jid, {
-                video: videoMp4,
-                mimetype: 'video/mp4',
-                caption
-            }, { quoted: msg })
+            if (videoMp4.length > VIDEO_BUFFER_LIMIT) {
+                await sock.sendMessage(jid, {
+                    document: videoMp4,
+                    mimetype: 'video/mp4',
+                    fileName: `${sanitizeFileName(archive?.title || shareInfo?.title || 'bilibili-video')}.mp4`,
+                    caption
+                }, { quoted: msg })
+            } else {
+                await sock.sendMessage(jid, {
+                    video: videoMp4,
+                    mimetype: 'video/mp4',
+                    caption
+                }, { quoted: msg })
+            }
 
             useLimit()
             await react('✅')

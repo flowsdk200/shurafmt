@@ -5,7 +5,7 @@ import { promisify } from 'node:util'
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36'
 const REQUEST_TIMEOUT = 30000
 const MEDIA_TIMEOUT = 300000
-const VIDEO_BUFFER_LIMIT = 150 * 1024 * 1024
+const VIDEO_BUFFER_LIMIT = 100 * 1024 * 1024
 const BASE_URL = 'https://donghuafilm.com/'
 const execFileAsync = promisify(execFile)
 
