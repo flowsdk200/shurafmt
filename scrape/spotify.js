@@ -1,9 +1,13 @@
 import axios from 'axios'
-import FormData from 'form-data'
 
-const BASE_URL = 'https://spotimate.io'
-const TURNSTILE_SITEKEY = '0x4AAAAAAA_b5m4iQN755mZw'
-const BYPASS_API = 'https://flowzsh-solver.hf.space/api/v1/solve'
+const ENTRY_URL = 'https://spotidown.app/en1'
+const BASE_URL = 'https://spotidown.app'
+const ACTION_URL = `${BASE_URL}/action`
+const TRACK_ACTION_URL = `${BASE_URL}/action/track`
+const PAGE_HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36',
+    'Accept-Language': 'en-US,en;q=0.9'
+}
 
 const extractTrackId = (url = '') => {
     const m = String(url).match(/track\/([A-Za-z0-9]+)/)
@@ -72,33 +76,49 @@ async function searchTracks(query, limit = 50) {
     })
 }
 
-async function getTurnstileToken() {
-    const res = await axios.post(BYPASS_API, {
-        url: BASE_URL,
-        siteKey: TURNSTILE_SITEKEY
-    }, { timeout: 120000 })
+const decodeValue = (value = '') => String(value || '')
+    .replace(/\\\//g, '/')
+    .replace(/&amp;/g, '&')
+    .trim()
 
-    if (!res.data?.success) throw new Error('Failed to get turnstile token')
-    return res.data.result
+const extractInputFields = (html = '') => {
+    const tags = String(html || '').match(/<input\b[^>]*>/gi) || []
+
+    return tags.map((tag) => {
+        const name = tag.match(/\bname=(['"])(.*?)\1/i)?.[2] || ''
+        const value = tag.match(/\bvalue=(['"])(.*?)\1/i)?.[2] || ''
+        const type = (tag.match(/\btype=(['"])(.*?)\1/i)?.[2] || 'text').toLowerCase()
+
+        return {
+            name,
+            value: decodeValue(value),
+            type
+        }
+    }).filter((item) => item.name)
 }
 
 async function getSession() {
-    const res = await axios.get(BASE_URL, {
-        headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        },
-        timeout: 30000
+    const res = await fetch(ENTRY_URL, {
+        headers: PAGE_HEADERS
     })
 
-    const csrfMatch = String(res.data || '').match(/name="(_[^"]+)"\s+type="hidden"\s+value="([^"]+)"/)
-    if (!csrfMatch) throw new Error('Failed to get CSRF token')
+    if (!res.ok) {
+        throw new Error(`SpotiDown entry HTTP ${res.status}`)
+    }
 
-    const cookies = res.headers['set-cookie']
-    const sessionCookie = cookies?.find((c) => c.startsWith('session_data='))
+    const html = await res.text()
+    const cookies = res.headers.getSetCookie?.() || []
+    const sessionCookie = cookies.find((c) => c.startsWith('session_data='))
+    const hiddenFields = extractInputFields(html)
+        .filter((item) => item.type === 'hidden')
+        .filter((item) => item.name !== 'g-recaptcha-response' && item.name !== 'url')
+
+    if (!hiddenFields.length) {
+        throw new Error('Hidden form token SpotiDown tidak ditemukan')
+    }
 
     return {
-        csrfName: csrfMatch[1],
-        csrfValue: csrfMatch[2],
+        hiddenFields,
         cookie: sessionCookie ? sessionCookie.split(';')[0] : ''
     }
 }
@@ -112,18 +132,29 @@ function parseResponse(html) {
     const source = String(html || '')
     const titleMatch = source.match(/title="([^"]+)"[^>]*>([^<]+)</)
     const artistMatch = source.match(/<p><span>([^<]+)<\/span><\/p>/)
-    const coverMatch = source.match(/src="(https:\/\/i\.scdn\.co\/image\/[^"]+)"/)
-    const downloadMatch = source.match(/href="(https:\/\/spotimate\.io\/dl\?token=[^"]+)"[^>]*>.*?Download Mp3/)
-    const coverDlMatch = source.match(/href="(https:\/\/spotimate\.io\/dl\?token=[^"]+)"[^>]*>.*?Download Cover/)
+    const coverMatch = source.match(/src="(https:\/\/i\.(?:scdn|scdn\.co)\/image\/[^"]+)"/i)
+    const inputs = extractInputFields(source)
+    const dataField = inputs.find((item) => item.name === 'data')?.value || ''
+    const baseField = inputs.find((item) => item.name === 'base')?.value || ''
+    const tokenField = inputs.find((item) => item.name === 'token')?.value || ''
 
-    if (!downloadMatch) throw new Error('Download link not found')
+    const linkMatches = [...source.matchAll(/<a[^>]+href="([^"]+)"[^>]*>\s*<span><span>([^<]+)<\/span><\/span>/gi)]
+        .map((match) => ({
+            href: decodeValue(match[1]),
+            label: String(match[2] || '').trim()
+        }))
+    const downloadMatch = linkMatches.find((item) => /download mp3/i.test(item.label))
+    const coverDlMatch = linkMatches.find((item) => /download cover/i.test(item.label))
 
     return {
         title: titleMatch ? titleMatch[2].trim() : 'Unknown',
         artists: artistMatch ? artistMatch[1].trim() : 'Unknown',
-        cover: coverMatch ? coverMatch[1] : null,
-        downloadUrl: downloadMatch[1].replace(/&amp;/g, '&'),
-        coverUrl: coverDlMatch ? coverDlMatch[1].replace(/&amp;/g, '&') : null
+        cover: coverMatch ? decodeValue(coverMatch[1]) : null,
+        data: dataField,
+        base: baseField,
+        token: tokenField,
+        downloadUrl: downloadMatch ? downloadMatch.href : '',
+        coverUrl: coverDlMatch ? coverDlMatch.href : null
     }
 }
 
@@ -132,39 +163,76 @@ async function download(urlOrId) {
     const spotifyUrl = input.includes('spotify.com') ? input : `https://open.spotify.com/track/${input}`
 
     const session = await getSession()
-    const turnstileToken = await getTurnstileToken()
-
     const form = new FormData()
     form.append('url', spotifyUrl)
-    form.append(session.csrfName, session.csrfValue)
-    form.append('cf-turnstile-response', turnstileToken)
-
-    const res = await axios.post(`${BASE_URL}/action`, form, {
-        headers: {
-            ...form.getHeaders(),
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            Origin: BASE_URL,
-            Referer: `${BASE_URL}/`,
-            Cookie: session.cookie
-        },
-        timeout: 60000
-    })
-
-    if (String(res.data || '').includes('error') && String(res.data || '').includes('Please Refresh')) {
-        throw new Error('Session expired, please retry')
+    form.append('g-recaptcha-response', '')
+    for (const field of session.hiddenFields) {
+        form.append(field.name, field.value)
     }
 
-    const parsed = parseResponse(res.data)
-    const id = extractId(spotifyUrl)
+    const res = await fetch(ACTION_URL, {
+        method: 'POST',
+        headers: {
+            ...PAGE_HEADERS,
+            Origin: BASE_URL,
+            Referer: ENTRY_URL,
+            Cookie: session.cookie
+        },
+        body: form
+    })
+
+    if (!res.ok) {
+        throw new Error(`SpotiDown action HTTP ${res.status}`)
+    }
+
+    const payload = await res.json()
+    if (payload?.error) {
+        throw new Error(String(payload.message || 'Gagal resolve Spotify track di SpotiDown'))
+    }
+
+    const parsed = parseResponse(payload.data)
+    if (!parsed.data || !parsed.base || !parsed.token) {
+        throw new Error('Payload track SpotiDown tidak lengkap')
+    }
+
+    const formTrack = new FormData()
+    formTrack.append('data', parsed.data)
+    formTrack.append('base', parsed.base)
+    formTrack.append('token', parsed.token)
+
+    const trackRes = await fetch(TRACK_ACTION_URL, {
+        method: 'POST',
+        headers: {
+            ...PAGE_HEADERS,
+            Origin: BASE_URL,
+            Referer: ENTRY_URL,
+            Cookie: session.cookie
+        },
+        body: formTrack
+    })
+
+    if (!trackRes.ok) {
+        throw new Error(`SpotiDown track HTTP ${trackRes.status}`)
+    }
+
+    const trackPayload = await trackRes.json()
+    if (trackPayload?.error) {
+        throw new Error(String(trackPayload.message || 'Gagal ambil MP3 dari SpotiDown'))
+    }
+
+    const finalParsed = parseResponse(trackPayload.data)
+    if (!finalParsed.downloadUrl) {
+        throw new Error('Link MP3 SpotiDown tidak ditemukan')
+    }
 
     return {
-        id,
-        title: parsed.title,
-        artists: parsed.artists,
-        album: parsed.title,
-        cover: parsed.cover,
-        downloadUrl: parsed.downloadUrl,
-        coverUrl: parsed.coverUrl,
+        id: extractId(spotifyUrl),
+        title: finalParsed.title || parsed.title,
+        artists: finalParsed.artists || parsed.artists,
+        album: finalParsed.title || parsed.title,
+        cover: finalParsed.cover || parsed.cover,
+        downloadUrl: finalParsed.downloadUrl,
+        coverUrl: finalParsed.coverUrl,
         cookie: session.cookie
     }
 }
