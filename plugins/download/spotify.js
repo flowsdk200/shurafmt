@@ -38,6 +38,9 @@ export default {
             const data = await downloadBuffer(targetUrl)
             const title = String(data?.title || 'spotify track').trim()
             const artists = String(data?.artists || '-').trim()
+            if (duration === '-' && data?.durationFormatted) {
+                duration = data.durationFormatted
+            }
 
             if (duration === '-') {
                 try {

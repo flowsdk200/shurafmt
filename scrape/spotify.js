@@ -81,6 +81,16 @@ const decodeValue = (value = '') => String(value || '')
     .replace(/&amp;/g, '&')
     .trim()
 
+const decodeBase64Json = (value = '') => {
+    try {
+        const json = Buffer.from(String(value || '').trim(), 'base64').toString('utf8')
+        const parsed = JSON.parse(json)
+        return parsed && typeof parsed === 'object' ? parsed : null
+    } catch {
+        return null
+    }
+}
+
 const extractInputFields = (html = '') => {
     const tags = String(html || '').match(/<input\b[^>]*>/gi) || []
 
@@ -137,6 +147,8 @@ function parseResponse(html) {
     const dataField = inputs.find((item) => item.name === 'data')?.value || ''
     const baseField = inputs.find((item) => item.name === 'base')?.value || ''
     const tokenField = inputs.find((item) => item.name === 'token')?.value || ''
+    const encodedMeta = decodeBase64Json(dataField)
+    const durationMs = parseDurationToMs(encodedMeta?.duration)
 
     const linkMatches = [...source.matchAll(/<a[^>]+href="([^"]+)"[^>]*>\s*<span><span>([^<]+)<\/span><\/span>/gi)]
         .map((match) => ({
@@ -150,6 +162,10 @@ function parseResponse(html) {
         title: titleMatch ? titleMatch[2].trim() : 'Unknown',
         artists: artistMatch ? artistMatch[1].trim() : 'Unknown',
         cover: coverMatch ? decodeValue(coverMatch[1]) : null,
+        album: encodedMeta?.album ? String(encodedMeta.album).trim() : '',
+        duration: durationMs,
+        durationFormatted: durationMs ? formatDuration(durationMs) : '',
+        releaseDate: encodedMeta?.date ? String(encodedMeta.date).trim() : '',
         data: dataField,
         base: baseField,
         token: tokenField,
@@ -229,7 +245,10 @@ async function download(urlOrId) {
         id: extractId(spotifyUrl),
         title: finalParsed.title || parsed.title,
         artists: finalParsed.artists || parsed.artists,
-        album: finalParsed.title || parsed.title,
+        album: parsed.album || finalParsed.album || finalParsed.title || parsed.title,
+        duration: parsed.duration || finalParsed.duration || 0,
+        durationFormatted: parsed.durationFormatted || finalParsed.durationFormatted || '',
+        releaseDate: parsed.releaseDate || finalParsed.releaseDate || '',
         cover: finalParsed.cover || parsed.cover,
         downloadUrl: finalParsed.downloadUrl,
         coverUrl: finalParsed.coverUrl,
@@ -264,6 +283,9 @@ async function downloadBuffer(urlOrId) {
         title: data.title,
         artists: data.artists,
         album: data.album,
+        duration: data.duration,
+        durationFormatted: data.durationFormatted,
+        releaseDate: data.releaseDate,
         cover: data.cover,
         audioBuffer: Buffer.from(audioRes.data),
         coverBuffer
@@ -276,6 +298,10 @@ async function getMetadata(urlOrId) {
         id: data.id,
         title: data.title,
         artists: data.artists,
+        album: data.album,
+        duration: data.duration,
+        durationFormatted: data.durationFormatted,
+        releaseDate: data.releaseDate,
         cover: data.cover
     }
 }
