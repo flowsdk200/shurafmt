@@ -464,7 +464,7 @@ const formatItem = (item, index) => {
         `• Episode: ${item.episodes}`,
         `• Durasi: ${item.duration}`,
         `• Genre: ${item.genres}`,
-        `• Link Seri: ${item.link}`
+        `• Link: ${item.link}`
     ]
 
     if (item.latestEpisode !== '-' && item.latestEpisodeLink !== '-') {

@@ -258,7 +258,7 @@ const buildCaption = (meta, fileInfo) => {
 
 export default {
     name: 'donghuadl',
-    aliases: ['dhdl', 'donghuafilm'],
+    aliases: ['dhdl', 'dfdl'],
     description: 'Download video episode dari donghuafilm',
     execute: async ({ sock, msg, text, prefix, command, react, useLimit }) => {
         const jid = msg.key.remoteJid
