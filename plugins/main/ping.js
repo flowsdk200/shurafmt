@@ -245,8 +245,7 @@ export default {
         text += `• Download: ${network.down}\n`
         text += `• Upload: ${network.up}\n`
         text += `• NodeJS: ${process.version}\n`
-        text += `• Memory RSS: ${formatSize(process.memoryUsage().rss)}\n\n`
-        text += `• Reported: ${new Date().toLocaleString('id-ID')}`
+        text += `• Memory RSS: ${formatSize(process.memoryUsage().rss)}`
 
         await sock.sendMessage(msg.key.remoteJid, { text: styles(text) }, { quoted: msg })
     }
