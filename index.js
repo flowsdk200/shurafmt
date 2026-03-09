@@ -62,7 +62,7 @@ async function connectToWhatsApp() {
         },
         msgRetryCounterCache,
         generateHighQualityLinkPreview: true,
-        browser: Browsers.macOS("Chrome"),
+        browser: ["Linux", "Chrome", "20.0.04"],
         getMessage: async (key) => {
             const msg = store.getMessage(key)
             return msg?.message
