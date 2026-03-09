@@ -6,7 +6,7 @@ const BASE_URL = 'https://donghuafilm.com'
 const SEARCH_URL = `${BASE_URL}/`
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36'
 const REQUEST_TIMEOUT = 30000
-const MAX_RESULTS = 5
+const MAX_RESULTS = 10
 const execFileAsync = promisify(execFile)
 
 const cleanText = (value) => String(value || '')
