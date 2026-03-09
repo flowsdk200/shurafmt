@@ -253,7 +253,7 @@ export default {
 
         if (!query) {
             return sock.sendMessage(jid, {
-                text: `Contoh penggunaan:\n- ${prefix + command} martial master`
+                text: `Contoh penggunaan:\n- ${prefix + command} renegade immortal`
             }, { quoted: msg })
         }
 

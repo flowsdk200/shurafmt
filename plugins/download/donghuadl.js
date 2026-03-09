@@ -208,7 +208,6 @@ const buildCaption = (meta, fileInfo) => {
 
     return (
         `\`\`\`• Title: ${meta.title}\n` +
-        `• File: ${fileName}\n` +
         `• Size: ${formatBytes(fileInfo?.size)}\`\`\``
     )
 }
@@ -223,7 +222,7 @@ export default {
 
         if (!pageUrl) {
             return sock.sendMessage(jid, {
-                text: `Contoh penggunaan:\n- ${prefix + command} https://donghuafilm.com/martial-master-episode-637-subtitle-indonesia/`
+                text: `Contoh penggunaan:\n- ${prefix + command} https://donghuafilm.com/renegade-immortal-episode-131-subtitle-indonesia/`
             }, { quoted: msg })
         }
 
