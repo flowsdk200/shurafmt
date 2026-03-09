@@ -1,9 +1,13 @@
 import axios from 'axios'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
 
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36'
 const REQUEST_TIMEOUT = 30000
 const MEDIA_TIMEOUT = 300000
 const VIDEO_BUFFER_LIMIT = 150 * 1024 * 1024
+const BASE_URL = 'https://donghuafilm.com/'
+const execFileAsync = promisify(execFile)
 
 const cleanText = (value) => String(value || '')
     .replace(/&#8211;/g, '-')
@@ -37,24 +41,44 @@ const normalizeInputUrl = (input) => {
     }
 }
 
-const requestText = async (url) => {
-    const response = await axios.get(url, {
-        timeout: REQUEST_TIMEOUT,
-        maxRedirects: 5,
-        validateStatus: () => true,
-        headers: {
-            'User-Agent': USER_AGENT,
-            'Accept-Language': 'id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7',
-            Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            Referer: 'https://donghuafilm.com/'
-        }
-    })
+const curlText = async (url, referer = BASE_URL) => {
+    const marker = '__CURL_STATUS__'
+    const args = [
+        '-L',
+        '--compressed',
+        '--max-time', String(Math.max(10, Math.ceil(REQUEST_TIMEOUT / 1000))),
+        '-sS',
+        '-A', USER_AGENT,
+        '-H', 'Accept-Language: id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7',
+        '-H', 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+    ]
 
-    return {
-        status: response.status,
-        html: String(response.data || ''),
-        finalUrl: response.request?.res?.responseUrl || url
+    if (referer) args.push('-e', referer)
+    args.push('-w', `\n${marker}:%{http_code}`, url)
+
+    try {
+        const { stdout } = await execFileAsync('curl', args, {
+            encoding: 'utf8',
+            maxBuffer: 8 * 1024 * 1024
+        })
+
+        const output = String(stdout || '')
+        const idx = output.lastIndexOf(`\n${marker}:`)
+        const body = idx >= 0 ? output.slice(0, idx) : output
+        const status = Number(idx >= 0 ? output.slice(idx + marker.length + 2).trim() : 0)
+
+        return {
+            status,
+            html: body,
+            finalUrl: url
+        }
+    } catch (err) {
+        throw new Error(err?.stderr?.trim() || err?.message || 'curl request gagal')
     }
+}
+
+const requestText = async (url) => {
+    return curlText(url)
 }
 
 const toAbsoluteUrl = (value, base) => {
@@ -138,6 +162,13 @@ const fetchPixeldrainInfo = async (fileId) => {
     return response.data
 }
 
+const buildDocumentUrl = (videoUrl) => {
+    const target = cleanText(videoUrl)
+    if (!target) return ''
+    if (/pixeldrain\.com\/api\/file\/[A-Za-z0-9]+$/i.test(target)) return `${target}?download`
+    return target
+}
+
 const fetchVideoBuffer = async (url) => {
     const target = cleanText(url)
     if (!/^https?:\/\//i.test(target)) {
@@ -174,7 +205,6 @@ const fetchVideoBuffer = async (url) => {
 
 const buildCaption = (meta, fileInfo) => {
     const fileName = cleanText(fileInfo?.name) || '-'
-    const source = fileInfo ? 'Pixeldrain' : 'DonghuaFilm'
 
     return (
         `\`\`\`• Title: ${meta.title}\n` +
@@ -210,10 +240,11 @@ export default {
             const fileInfo = await fetchPixeldrainInfo(fileId)
             const sizeBytes = Number(fileInfo?.size || 0)
             const fileName = cleanText(fileInfo?.name) || `${meta.title}.mp4`
+            const documentUrl = buildDocumentUrl(meta.videoUrl)
 
             if (sizeBytes > VIDEO_BUFFER_LIMIT) {
                 await sock.sendMessage(jid, {
-                    document: { url: meta.videoUrl },
+                    document: { url: documentUrl || meta.videoUrl },
                     mimetype: cleanText(fileInfo?.mime_type) || 'video/mp4',
                     fileName,
                     caption: buildCaption(meta, fileInfo)
@@ -232,8 +263,9 @@ export default {
             await react('✅')
         } catch (err) {
             await react('❌')
+            const detail = err?.message || err?.code || String(err) || 'Unknown error'
             await sock.sendMessage(jid, {
-                text: `❌ Error: ${err?.message || 'Unknown error'}`
+                text: `❌ Error: ${detail}`
             }, { quoted: msg })
         }
     }
