@@ -1,9 +1,6 @@
 import axios from 'axios'
 import * as cheerio from 'cheerio'
-import { createRequire } from 'module'
-
-const require = createRequire(import.meta.url)
-const { Jimp } = require('jimp')
+import { ffmpeg } from '../../src/utils/converter.js'
 
 const SEARCH_URL = 'https://shopee.co.id/search'
 const BASE_URL = 'https://shopee.co.id'
@@ -11,6 +8,7 @@ const MAX_RESULTS = 15
 const REQUEST_TIMEOUT = 45000
 const SHOP_NAME_CONCURRENCY = 6
 const IMAGE_CHECK_TIMEOUT = 12000
+const IMAGE_EXTS = ['webp', 'jpeg', 'jpg', 'png']
 const USER_AGENTS = [
     'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
     'Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)',
@@ -166,6 +164,42 @@ const normalizeShopNameImage = (value) => {
     return removedTn
 }
 
+const buildImageCandidates = (value) => {
+    const raw = normalizeImage(value)
+    if (!raw) return []
+
+    const set = new Set()
+    const add = (candidate) => {
+        if (!candidate) return
+        const normalized = candidate.replace(/(\?.*)$/g, '')
+        if (!normalized || !/^https?:\/\//i.test(normalized)) return
+        set.add(normalized)
+    }
+
+    add(raw)
+    add(normalizeShopNameImage(raw))
+
+    try {
+        const url = new URL(raw)
+        const path = url.pathname
+        const base = `${url.origin}${path}`
+        add(base)
+
+        const noTn = path.replace(/_tn(?=\.[^./?#]+$)/i, '')
+        add(`${url.origin}${noTn}`)
+
+        const withoutExt = base.replace(/\.[^./?#]+$/i, '')
+        IMAGE_EXTS.forEach((ext) => add(`${withoutExt}.${ext}`))
+
+        const noTnNoExt = `${url.origin}${noTn.replace(/\.[^./?#]+$/i, '')}`
+        IMAGE_EXTS.forEach((ext) => add(`${noTnNoExt}.${ext}`))
+    } catch {
+        // ignore invalid URLs
+    }
+
+    return [...set]
+}
+
 const sniffImageMime = (buffer) => {
     if (!buffer || buffer.length < 12) return null
 
@@ -184,8 +218,8 @@ const convertWebpToJpegIfNeeded = async (payload) => {
     if (payload.mimetype !== 'image/webp') return payload
 
     try {
-        const image = await Jimp.fromBuffer(payload.buffer)
-        const jpeg = await image.getBuffer('image/jpeg')
+        const converted = await ffmpeg(payload.buffer, ['-frames:v', '1'], 'webp', 'jpg')
+        const jpeg = converted?.data
         if (Buffer.isBuffer(jpeg) && jpeg.length) {
             return { buffer: jpeg, mimetype: 'image/jpeg' }
         }
@@ -235,34 +269,26 @@ const sendImageMessage = async (sock, jid, msg, caption, imageSources) => {
     const attempted = new Set()
 
     for (const source of imageSources) {
-        const normalized = normalizeShopNameImage(normalizeImage(source))
-        if (!normalized || attempted.has(normalized)) continue
-        attempted.add(normalized)
+        const candidates = buildImageCandidates(normalizeShopNameImage(source))
+        for (const candidate of candidates) {
+            if (!candidate || attempted.has(candidate)) continue
+            attempted.add(candidate)
 
-        try {
-            await sock.sendMessage(
-                jid,
-                { image: { url: normalized }, caption },
-                { quoted: msg }
-            )
-            return true
-        } catch {
-            // continue to buffered send
-        }
+            try {
+                const result = await fetchImageBuffer(candidate)
+                if (!result) continue
 
-        try {
-            const result = await fetchImageBuffer(normalized)
-            if (!result) continue
-
-            const finalImage = await convertWebpToJpegIfNeeded(result)
-            await sock.sendMessage(jid, {
-                image: finalImage.buffer,
-                mimetype: finalImage.mimetype,
-                caption
-            }, { quoted: msg })
-            return true
-        } catch {
-            // keep trying next source
+                const finalImage = await convertWebpToJpegIfNeeded(result)
+                await sock.sendMessage(jid, {
+                    image: finalImage.buffer,
+                    mimetype: finalImage.mimetype || 'image/jpeg',
+                    fileName: 'shopee-result.jpg',
+                    caption
+                }, { quoted: msg })
+                return true
+            } catch {
+                // keep trying next candidate
+            }
         }
     }
 
@@ -315,8 +341,13 @@ const fetchProductImage = async (productUrl) => {
         if (status !== 200 || !data) return null
 
         const $ = cheerio.load(String(data))
-        const ogImage = normalizeImage($('meta[property="og:image"]').attr('content'))
-        if (ogImage) return ogImage
+        const metaImage = [
+            normalizeImage($('meta[property="og:image"]').attr('content')),
+            normalizeImage($('meta[name="twitter:image"]').attr('content')),
+            normalizeImage($('meta[property="og:image:secure_url"]').attr('content'))
+        ].find(Boolean)
+
+        if (metaImage) return metaImage
 
         const jsonLd = $('script[type="application/ld+json"]').map((_, el) => $(el).text()).get()
             .map((value) => {
@@ -547,11 +578,22 @@ export default {
             const captionText = `\`\`\`\n${caption}\`\`\``
 
             const imageSources = []
-            if (rows[0]?.image) imageSources.push(rows[0].image)
-            if (rows[0]?.link) {
-                const productImage = await fetchProductImage(rows[0].link)
-                if (productImage) imageSources.push(productImage)
-            }
+            const imageCandidates = rows.slice(0, 3)
+
+            imageCandidates.forEach((row) => {
+                if (row?.image) imageSources.push(row.image)
+            })
+
+            const extraProductImages = await Promise.all(
+                imageCandidates
+                    .map((row) => row?.link)
+                    .filter(Boolean)
+                    .map((link) => fetchProductImage(link))
+            )
+
+            extraProductImages.forEach((itemImage) => {
+                if (itemImage) imageSources.push(itemImage)
+            })
 
             const sent = await sendImageMessage(sock, jid, msg, captionText, imageSources)
             if (!sent) {
