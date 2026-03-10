@@ -27,14 +27,12 @@ export default {
 
         await react('⏳')
 
-        const user = usersDb.getUser(targetJid)
-        const before = user.limit ?? 0
-        usersDb.updateUser(targetJid, { limit: before + amount })
+        const updated = usersDb.addLimit(targetJid, amount)
         useLimit()
         await react('✅')
 
         return sock.sendMessage(jid, {
-            text: `✅ Limit @${targetJid.split('@')[0]} ditambah ${amount}. sekarang: ${before + amount}`,
+            text: `✅ Limit @${targetJid.split('@')[0]} ditambah ${amount}. sekarang: ${updated.limit}/${updated.limitMax}`,
             mentions: [targetJid]
         }, { quoted: msg })
     }

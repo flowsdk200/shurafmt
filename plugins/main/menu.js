@@ -82,7 +82,7 @@ export default {
             const status = userIsOwner ? 'owner' : userIsPremium ? 'premium' : 'free'
             const senderNum = sender.split('@')[0]
             const limitLeft = usersDb.getLimit(sender)
-            const limitMax = usersDb.getMaxLimit(userIsOwner, userIsPremium)
+            const limitMax = usersDb.getDisplayMaxLimit(sender, userIsOwner, userIsPremium)
             const totalUsers = usersDb.count()
             const wkwk = quotednye(config.channelJid, owner, 'menu')
             const ppBuffer = await getPP(sock, sender, config.thumb)

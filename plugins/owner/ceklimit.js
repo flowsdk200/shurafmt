@@ -11,11 +11,11 @@ export default {
         const targetJid = (isOwner && text.trim()) ? getTargetJid(msg, text) : sender
         const checkJid = targetJid || sender
 
-        const user = usersDb.getUser(checkJid)
-        const limit = usersDb.getLimit(checkJid)
         const checkIsOwner = usersDb.isOwner(checkJid)
         const checkIsPremium = usersDb.isPremium(checkJid)
-        const maxLimit = usersDb.getMaxLimit(checkIsOwner, checkIsPremium)
+        usersDb.checkAndResetLimit(checkJid, checkIsOwner, checkIsPremium)
+        const limit = usersDb.getLimit(checkJid)
+        const maxLimit = usersDb.getDisplayMaxLimit(checkJid, checkIsOwner, checkIsPremium)
         const role = checkIsOwner ? 'owner' : checkIsPremium ? 'premium' : 'free'
         const num = checkJid.split('@')[0]
 

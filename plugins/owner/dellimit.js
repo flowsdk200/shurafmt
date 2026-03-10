@@ -19,8 +19,7 @@ export default {
             if (raw.toLowerCase() === 'all') {
                 const users = usersDb.all()
                 for (const u of users) {
-                    const max = usersDb.getMaxLimit(usersDb.isOwner(u.jid), usersDb.isPremium(u.jid))
-                    usersDb.updateUser(u.jid, { limit: max })
+                    usersDb.resetLimitToTier(u.jid)
                 }
 
                 useLimit()
@@ -38,13 +37,12 @@ export default {
                 }, { quoted: msg })
             }
 
-            const max = usersDb.getMaxLimit(usersDb.isOwner(targetJid), usersDb.isPremium(targetJid))
-            usersDb.updateUser(targetJid, { limit: max })
+            const updated = usersDb.resetLimitToTier(targetJid)
 
             useLimit()
             await react('✅')
             return sock.sendMessage(jid, {
-                text: `✅ Limit @${targetJid.split('@')[0]} berhasil direset ke ${max}.`,
+                text: `✅ Limit @${targetJid.split('@')[0]} berhasil direset ke ${updated.limit}/${updated.limitMax}.`,
                 mentions: [targetJid]
             }, { quoted: msg })
         }
@@ -62,24 +60,20 @@ export default {
 
         await react('⏳')
 
-        const user = usersDb.getUser(targetJid)
-        const before = user.limit ?? 0
-
         if (amount !== null) {
-            const after = Math.max(0, before - amount)
-            usersDb.updateUser(targetJid, { limit: after })
+            const updated = usersDb.reduceLimit(targetJid, amount)
             useLimit()
             await react('✅')
             return sock.sendMessage(jid, {
-                text: `✅ Limit @${targetJid.split('@')[0]} dikurangi ${amount}. sekarang: ${after}`,
+                text: `✅ Limit @${targetJid.split('@')[0]} dikurangi ${amount}. sekarang: ${updated.limit}/${updated.limitMax}`,
                 mentions: [targetJid]
             }, { quoted: msg })
         } else {
-            usersDb.updateUser(targetJid, { limit: 0 })
+            const updated = usersDb.setLimitState(targetJid, 0, 0)
             useLimit()
             await react('✅')
             return sock.sendMessage(jid, {
-                text: `✅ Limit @${targetJid.split('@')[0]} direset ke 0.`,
+                text: `✅ Limit @${targetJid.split('@')[0]} direset ke ${updated.limit}/${updated.limitMax}.`,
                 mentions: [targetJid]
             }, { quoted: msg })
         }

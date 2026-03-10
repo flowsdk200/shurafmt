@@ -79,6 +79,7 @@ class UserDatabase {
                 premium: false,
                 owner: false,
                 limit: config.limits.free,
+                limitMax: config.limits.free,
                 limitDate: ''
             }
             this._persistUser(jid)
@@ -179,17 +180,82 @@ class UserDatabase {
         return config.limits.free
     }
 
+    getDisplayMaxLimit(jid, isOwner = this.isOwner(jid), isPremium = this.isPremium(jid)) {
+        const user = this.getUser(jid)
+        const today = this._getWibDate()
+        const tierMax = this.getMaxLimit(isOwner, isPremium)
+        if (user.limitDate !== today) return tierMax
+        if (typeof user.limitMax === 'number') return Math.max(0, user.limitMax)
+        return Math.max(0, user.limit ?? tierMax)
+    }
+
+    setLimitState(jid, limit, limitMax = limit, { markToday = true } = {}) {
+        const user = this.getUser(jid)
+        user.limit = Math.max(0, Number(limit) || 0)
+        user.limitMax = Math.max(0, Number(limitMax) || 0)
+        if (user.limit > user.limitMax) user.limit = user.limitMax
+        if (markToday) user.limitDate = this._getWibDate()
+        this._persistUser(jid)
+        return user
+    }
+
+    addLimit(jid, amount) {
+        const isOwner = this.isOwner(jid)
+        const isPremium = this.isPremium(jid)
+        this.checkAndResetLimit(jid, isOwner, isPremium)
+        const user = this.getUser(jid)
+        const delta = Math.max(0, Number(amount) || 0)
+        const currentMax = this.getDisplayMaxLimit(jid, isOwner, isPremium)
+        return this.setLimitState(jid, (user.limit ?? 0) + delta, currentMax + delta)
+    }
+
+    reduceLimit(jid, amount) {
+        const isOwner = this.isOwner(jid)
+        const isPremium = this.isPremium(jid)
+        this.checkAndResetLimit(jid, isOwner, isPremium)
+        const user = this.getUser(jid)
+        const delta = Math.max(0, Number(amount) || 0)
+        const currentMax = this.getDisplayMaxLimit(jid, isOwner, isPremium)
+        return this.setLimitState(
+            jid,
+            Math.max(0, (user.limit ?? 0) - delta),
+            Math.max(0, currentMax - delta)
+        )
+    }
+
+    resetLimitToTier(jid) {
+        const isOwner = this.isOwner(jid)
+        const isPremium = this.isPremium(jid)
+        const tierMax = this.getMaxLimit(isOwner, isPremium)
+        return this.setLimitState(jid, tierMax, tierMax)
+    }
+
     checkAndResetLimit(jid, isOwner, isPremium) {
         const user = this.getUser(jid)
         const today = this._getWibDate()
         const maxLimit = this.getMaxLimit(isOwner, isPremium)
-        if (
-            user.limit === undefined ||
-            user.limitDate !== today ||
-            user.limit > maxLimit
-        ) {
+        let changed = false
+
+        if (user.limit === undefined) {
             user.limit = maxLimit
+            changed = true
+        }
+
+        if (user.limitMax === undefined) {
+            user.limitMax = user.limitDate === today
+                ? Math.max(0, Number(user.limit) || maxLimit)
+                : maxLimit
+            changed = true
+        }
+
+        if (user.limitDate !== today) {
+            user.limit = maxLimit
+            user.limitMax = maxLimit
             user.limitDate = today
+            changed = true
+        }
+
+        if (changed) {
             this._persistUser(jid)
         }
     }
