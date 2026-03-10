@@ -153,6 +153,19 @@ const normalizeShopNameImage = (value) => {
     return raw.replace(/_tn(?=\.webp$|\.jpg$|\.jpeg$)/i, '')
 }
 
+const sniffImageMime = (buffer) => {
+    if (!buffer || buffer.length < 12) return null
+
+    const b = buffer.slice(0, 12)
+
+    if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'image/jpeg'
+    if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return 'image/png'
+    if (b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x38) return 'image/gif'
+    if (b.toString('latin1', 0, 4) === 'RIFF' && b.toString('latin1', 8, 12) === 'WEBP') return 'image/webp'
+    if (b.toString('latin1', 4, 12) === 'ftyp') return 'video/mp4'
+    return null
+}
+
 const fetchImageBuffer = async (url) => {
     if (!url || !/^https?:\/\//i.test(url)) return null
 
@@ -172,10 +185,17 @@ const fetchImageBuffer = async (url) => {
         if (response.status < 200 || response.status >= 400) return null
 
         const ct = String(response.headers?.['content-type'] || '').toLowerCase()
-        if (ct && !ct.startsWith('image/')) return null
+        const mimeFromCt = ct ? ct.split(';')[0].trim() : ''
+        if (mimeFromCt && !mimeFromCt.startsWith('image/')) return null
 
         const buffer = Buffer.from(response.data || [])
-        return buffer.length ? buffer : null
+        if (!buffer.length) return null
+
+        const mimeFromBuffer = sniffImageMime(buffer)
+        const resolvedMime = mimeFromCt || mimeFromBuffer
+        if (!resolvedMime || !resolvedMime.startsWith('image/')) return null
+
+        return { buffer, mimetype: resolvedMime }
     } catch {
         return null
     }
@@ -441,16 +461,17 @@ export default {
                 const normalized = normalizeShopNameImage(normalizeImage(src))
                 if (!normalized || pushed.has(normalized)) continue
                 pushed.add(normalized)
-                const buffer = await fetchImageBuffer(normalized)
-                if (buffer) {
-                    firstImage = buffer
+                const result = await fetchImageBuffer(normalized)
+                if (result) {
+                    firstImage = result
                     break
                 }
             }
 
             if (firstImage) {
                 await sock.sendMessage(jid, {
-                    image: firstImage,
+                    image: firstImage.buffer,
+                    mimetype: firstImage.mimetype,
                     caption: `\`\`\`\n${caption}\`\`\``
                 }, { quoted: msg })
             } else {
