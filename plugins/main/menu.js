@@ -26,7 +26,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 const styles = (text) => `\`\`\`${text}\`\`\``
 
-const buildMenuQuoted = (channelJid, ownerNumber, commandName = 'MENU') => ({
+const quotednye = (channelJid, ownerNumber, commandName = 'MENU') => ({
     key: {
         remoteJid: `${String(ownerNumber || '0').replace(/[^0-9]/g, '') || '0'}-1625305606@g.us`,
         participant: '0@s.whatsapp.net'
@@ -69,7 +69,7 @@ export default {
     name: 'menu',
     aliases: ['help', 'm'],
     description: 'Tampilkan daftar semua perintah bot',
-    execute: async ({ sock, msg, config, usersDb, pushName, sender, isOwner, isPremium, react }) => {
+    execute: async ({ sock, msg, botJid, config, usersDb, pushName, sender, isOwner, isPremium, react }) => {
         try {
             await react('⏳')
 
@@ -84,49 +84,48 @@ export default {
             const limitLeft = usersDb.getLimit(sender)
             const limitMax = usersDb.getMaxLimit(userIsOwner, userIsPremium)
             const totalUsers = usersDb.count()
-
+            const wkwk = quotednye(config.channelJid, owner, 'menu')
             const ppBuffer = await getPP(sock, sender, config.thumb)
 
             const menuText = Object.entries(MENU)
-                .map(([kategori, cmds]) => `\`\`\`${kategori} (${cmds.length})\`\`\`\n\`\`\`${cmds.map((c) => `❖ ${p}${c}`).join('\n')}\`\`\``)
+                .map(([kategori, cmds]) => `\`\`\`${kategori} (${cmds.length})\`\`\`\n\`\`\`${cmds.map((c) => `▦ ${p}${c}`).join('\n')}\`\`\``)
                 .join('\n\n')
 
-            const shura =
+            const syuu =
                     `\`\`\`Users\`\`\`\n` +
-                    `\`\`\`❖ Name: ${String(pushName || 'user')}\n` +
-                    `❖ ID: @${senderNum}\n` +
-                    `❖ Status: ${status}\n` +
-                    `❖ Limit: ${limitLeft}/${limitMax}\`\`\`\n\n` +
+                    `\`\`\`▦ Name: ${String(pushName || 'user')}\n` +
+                    `▦ ID: @${senderNum}\n` +
+                    `▦ Status: ${status}\n` +
+                    `▦ Limit: ${limitLeft}/${limitMax}\`\`\`\n\n` +
                     `\`\`\`System\`\`\`\n` +
-                    `\`\`\`❖ Owner: @${owner}\n` +
-                    `❖ Mode: ${sock.public ? 'public' : 'self'}\n` +
-                        `❖ Users: ${totalUsers}\n` +
-                        `❖ Uptime: ${getUptime(os.uptime())}\`\`\`\n\n\n` +
+                    `\`\`\`▦ Owner: @${owner}\n` +
+                    `▦ Mode: ${sock.public ? 'public' : 'self'}\n` +
+                        `▦ Users: ${totalUsers}\n` +
+                        `▦ Uptime: ${getUptime(os.uptime())}\`\`\`\n\n\n` +
                         `${menuText}`
 
-            const buttonflows = {
+            const hoho = {
+                caption: syuu,
                 document: ppBuffer,
                 mimetype: 'image/png',
-                fileName: `${pushName.toLowerCase()}`,
                 fileLength: 999999,
-                pageCount: 0,
+                fileSize: 999999,
+                fileName: `${pushName.toLowerCase()}`,
                 jpegThumbnail: ppBuffer,
-                caption: shura,
                 footer: `© ${config.botName}`,
-                media: true,
                 interactiveButtons: [{
-                    name: 'cta_url',
-                    buttonParamsJson: JSON.stringify({
-                        display_text: 'DEVELOPER',
-                        url: 'https://wa.me/6285226344606',
-                        merchant_url: 'https://wa.me/6285226344606'
-                    })
-                }, {
                     name: 'cta_url',
                     buttonParamsJson: JSON.stringify({
                         display_text: 'SCRIPT',
                         url: 'https://whatsapp.com/channel/0029Vb8IWc3FSAsy4xaX991n',
                         merchant_url: 'https://whatsapp.com/channel/0029Vb8IWc3FSAsy4xaX991n'
+                    })
+                }, {
+                    name: 'cta_url',
+                    buttonParamsJson: JSON.stringify({
+                        display_text: 'DEVELOPER',
+                        url: 'https://wa.me/6285226344606',
+                        merchant_url: 'https://wa.me/6285226344606'
                     })
                 }],
                 contextInfo: {
@@ -134,8 +133,8 @@ export default {
                     forwardingScore: 999,
                     isForwarded: true,
                     forwardedNewsletterMessageInfo: {
-                        newsletterName: `${config.botName} wabot - v1.0.0`,
                         newsletterJid: config.channelJid,
+                        newsletterName: `${config.botName} wabot - v1.0.0`,
                     },
                     externalAdReply: {
                         title: `${config.botName} wabot - v1.0.0`,
@@ -148,9 +147,8 @@ export default {
                 },
                 viewOnce: true,
             }
-            const quotedMenu = buildMenuQuoted(config.channelJid, owner, 'menu')
             await sleep(3000)
-            await sock.sendMessage(msg.key.remoteJid, buttonflows, { userJid: sender, quoted: quotedMenu })
+            await sock.sendMessage(jid, hoho, { quoted: wkwk })
             await react('✅')
         } catch (error) {
             console.error('Error sending menu:', error)

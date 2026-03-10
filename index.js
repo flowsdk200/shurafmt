@@ -49,7 +49,7 @@ const notifyOwnersError = async (title, err, extra = '') => {
 async function connectToWhatsApp() {
     const { state, saveCreds } = await useMultiFileAuthState(config.sessionName)
 
-    const version = [2, 3000, 1034074495]
+    const version = [2, 3000, 1034813620]
     logger.info(`Using WA v${version.join('.')}`)
 
     const socketConfig = {
@@ -83,7 +83,7 @@ async function connectToWhatsApp() {
     store.bind(sock.ev)
 
     if (!sock.authState.creds.registered) {
-        let phoneNumber = await question('Please enter your WhatsApp phone number (e.g., 628xxxxxx): ')
+        let phoneNumber = await question('Enter your phone number (e.g., 628xxx): ')
         phoneNumber = phoneNumber.replace(/[^0-9]/g, '')
 
         /** Delay is required before requesting pairing code per docs **/
