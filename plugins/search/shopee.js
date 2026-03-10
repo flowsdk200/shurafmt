@@ -5,6 +5,7 @@ const SEARCH_URL = 'https://shopee.co.id/search'
 const BASE_URL = 'https://shopee.co.id'
 const MAX_RESULTS = 15
 const REQUEST_TIMEOUT = 45000
+const SHOP_NAME_CONCURRENCY = 6
 const USER_AGENTS = [
     'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
     'Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)',
@@ -101,7 +102,7 @@ const normalizeImageFromCard = ($item) => {
     })
 
     const images = rawCandidates
-        .map((value) => normalizeImage(value))
+        .map((value) => normalizeShopNameImage(normalizeImage(value)))
         .filter(Boolean)
 
     return images.find((src) => /susercontent\.com\/file\//i.test(src) && !/_tn\.gif$/i.test(src) && !/_tn\.webp$/i.test(src)) ||
@@ -113,9 +114,42 @@ const normalizeImageFromCard = ($item) => {
 }
 
 const extractShopId = ($item) => {
-    const shopLink = $item.find('a[href*="shopid="]').first().attr('href') || ''
-    const match = String(shopLink).match(/(?:\?|&)shopid=(\d+)/i)
-    return match?.[1] || null
+    const link = cleanText($item.find('a.contents').first().attr('href'))
+    if (!link) return null
+
+    const matchProduct = link.match(/-i\.(\d+)\.(\d+)/i)
+    if (matchProduct?.[1]) return matchProduct[1]
+
+    const matchShop = link.match(/(?:\?|&)shopid=(\d+)/i)
+    if (matchShop?.[1]) return matchShop[1]
+
+    const anyShopLink = $item.find('a[href*="shopid="]').first().attr('href') || ''
+    const matchShopFromAny = String(anyShopLink).match(/(?:\?|&)shopid=(\d+)/i)
+    if (matchShopFromAny?.[1]) return matchShopFromAny[1]
+
+    const dataShopId = cleanText(
+        $item.find('[data-shopid], [data-shop-id]').first().attr('data-shopid')
+        || $item.find('[data-shop-id]').first().attr('data-shop-id')
+        || $item.attr('data-shopid')
+        || ''
+    )
+    if (dataShopId && /^\d+$/.test(dataShopId)) return dataShopId
+
+    const itemHtml = String($item.html() || '')
+    const matchFromHtml = itemHtml.match(/(?:-i\.(\d+)\.(\d+))|shopid=(\d+)/i)
+    if (matchFromHtml) return matchFromHtml[1] || matchFromHtml[3]
+
+    return null
+}
+
+const normalizeShopNameImage = (value) => {
+    const raw = cleanText(value)
+    if (!raw) return null
+
+    const isImageLike = /^https?:\/\/.+\.(?:jpe?g|png|webp)(?:$|\?|#)/i.test(raw)
+    if (!isImageLike) return null
+
+    return raw.replace(/_tn(?=\.webp$|\.jpg$|\.jpeg$)/i, '')
 }
 
 const shopNameCache = new Map()
@@ -151,20 +185,29 @@ const fetchShopName = async (shopId) => {
 }
 
 const enrichShopNames = async (rows) => {
-    const pending = []
+    const queue = []
     const seen = new Set()
 
     for (const row of rows) {
         if (!row.shopId || seen.has(row.shopId)) continue
         seen.add(row.shopId)
-        pending.push((async () => {
-            const name = await fetchShopName(row.shopId)
-            row.shop = name
-            return { shopId: row.shopId, name }
-        })())
+        queue.push(row.shopId)
     }
 
-    await Promise.all(pending.slice(0, 8))
+    const processNext = async () => {
+        if (!queue.length) return
+        const shopId = queue.shift()
+        const rowsForId = rows.filter((row) => row.shopId === shopId)
+        const name = await fetchShopName(shopId)
+        for (const row of rowsForId) {
+            row.shop = name
+        }
+        await processNext()
+    }
+
+    await Promise.all(
+        Array.from({ length: Math.min(SHOP_NAME_CONCURRENCY, queue.length) }, () => processNext())
+    )
     return rows
 }
 
@@ -319,10 +362,16 @@ export default {
 
             const firstImage = rows[0]?.image
             if (firstImage) {
-                await sock.sendMessage(jid, {
-                    image: { url: firstImage },
-                    caption: `\`\`\`\n${caption}\`\`\``
-                }, { quoted: msg })
+                try {
+                    await sock.sendMessage(jid, {
+                        image: { url: firstImage },
+                        caption: `\`\`\`\n${caption}\`\`\``
+                    }, { quoted: msg })
+                } catch {
+                    await sock.sendMessage(jid, {
+                        text: `\`\`\`\n${caption}\`\`\``
+                    }, { quoted: msg })
+                }
             } else {
                 await sock.sendMessage(jid, {
                     text: `\`\`\`\n${caption}\`\`\``
