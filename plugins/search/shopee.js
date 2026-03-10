@@ -6,6 +6,7 @@ const BASE_URL = 'https://shopee.co.id'
 const MAX_RESULTS = 15
 const REQUEST_TIMEOUT = 45000
 const SHOP_NAME_CONCURRENCY = 6
+const IMAGE_CHECK_TIMEOUT = 12000
 const USER_AGENTS = [
     'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
     'Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)',
@@ -150,6 +151,73 @@ const normalizeShopNameImage = (value) => {
     if (!isImageLike) return null
 
     return raw.replace(/_tn(?=\.webp$|\.jpg$|\.jpeg$)/i, '')
+}
+
+const fetchImageBuffer = async (url) => {
+    if (!url || !/^https?:\/\//i.test(url)) return null
+
+    try {
+        const response = await axios.get(url, {
+            timeout: IMAGE_CHECK_TIMEOUT,
+            maxRedirects: 5,
+            responseType: 'arraybuffer',
+            validateStatus: () => true,
+            headers: {
+                'User-Agent': USER_AGENTS[0],
+                'Accept': 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
+                'Referer': BASE_URL
+            }
+        })
+
+        if (response.status < 200 || response.status >= 400) return null
+
+        const ct = String(response.headers?.['content-type'] || '').toLowerCase()
+        if (ct && !ct.startsWith('image/')) return null
+
+        const buffer = Buffer.from(response.data || [])
+        return buffer.length ? buffer : null
+    } catch {
+        return null
+    }
+}
+
+const fetchProductImage = async (productUrl) => {
+    if (!productUrl || !/^https?:\/\//i.test(productUrl)) return null
+
+    try {
+        const { data, status } = await axios.get(productUrl, {
+            timeout: IMAGE_CHECK_TIMEOUT,
+            maxRedirects: 5,
+            headers: {
+                'User-Agent': USER_AGENTS[0],
+                'Accept-Language': 'id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7'
+            },
+            validateStatus: () => true
+        })
+
+        if (status !== 200 || !data) return null
+
+        const $ = cheerio.load(String(data))
+        const ogImage = normalizeImage($('meta[property="og:image"]').attr('content'))
+        if (ogImage) return ogImage
+
+        const jsonLd = $('script[type="application/ld+json"]').map((_, el) => $(el).text()).get()
+            .map((value) => {
+                try {
+                    return JSON.parse(value)
+                } catch {
+                    return null
+                }
+            })
+            .find((item) => item && (item['@type'] === 'Product' || item['@type'] === 'ItemList'))
+
+        const ldImage = normalizeImage(Array.isArray(jsonLd?.image) ? jsonLd.image[0] : jsonLd?.image)
+        if (ldImage) return ldImage
+    } catch {
+        return null
+    }
+
+    return null
 }
 
 const shopNameCache = new Map()
@@ -360,18 +428,31 @@ export default {
                 .map((item, index) => formatItem(item, index))
                 .join('\n\n')
 
-            const firstImage = rows[0]?.image
-            if (firstImage) {
-                try {
-                    await sock.sendMessage(jid, {
-                        image: { url: firstImage },
-                        caption: `\`\`\`\n${caption}\`\`\``
-                    }, { quoted: msg })
-                } catch {
-                    await sock.sendMessage(jid, {
-                        text: `\`\`\`\n${caption}\`\`\``
-                    }, { quoted: msg })
+            const imageSources = []
+            if (rows[0]?.image) imageSources.push(rows[0].image)
+            if (rows[0]?.link) {
+                const productImage = await fetchProductImage(rows[0].link)
+                if (productImage) imageSources.push(productImage)
+            }
+
+            let firstImage = null
+            const pushed = new Set()
+            for (const src of imageSources) {
+                const normalized = normalizeShopNameImage(normalizeImage(src))
+                if (!normalized || pushed.has(normalized)) continue
+                pushed.add(normalized)
+                const buffer = await fetchImageBuffer(normalized)
+                if (buffer) {
+                    firstImage = buffer
+                    break
                 }
+            }
+
+            if (firstImage) {
+                await sock.sendMessage(jid, {
+                    image: firstImage,
+                    caption: `\`\`\`\n${caption}\`\`\``
+                }, { quoted: msg })
             } else {
                 await sock.sendMessage(jid, {
                     text: `\`\`\`\n${caption}\`\`\``
