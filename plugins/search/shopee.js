@@ -147,10 +147,19 @@ const normalizeShopNameImage = (value) => {
     const raw = cleanText(value)
     if (!raw) return null
 
-    const isImageLike = /^https?:\/\/.+\.(?:jpe?g|png|webp)(?:$|\?|#)/i.test(raw)
+    if (!/^https?:\/\//i.test(raw)) return null
+
+    const isShopeeHost = /susercontent\.com/.test(raw)
+    const removedTn = raw.replace(/_tn(?=\.[a-z0-9]+$|$)/i, '')
+
+    if (isShopeeHost) {
+        return removedTn
+    }
+
+    const isImageLike = /^https?:\/.+\.(?:jpe?g|png|webp|gif|bmp|avif)(?:$|\?|#)/i.test(raw)
     if (!isImageLike) return null
 
-    return raw.replace(/_tn(?=\.webp$|\.jpg$|\.jpeg$)/i, '')
+    return removedTn
 }
 
 const sniffImageMime = (buffer) => {
@@ -198,6 +207,35 @@ const fetchImageBuffer = async (url) => {
         return { buffer, mimetype: resolvedMime }
     } catch {
         return null
+    }
+}
+
+const sendInChunks = async (sock, jid, text, msg) => {
+    const MAX_LEN = 4000
+    let remaining = cleanText(text)
+
+    if (!remaining) {
+        return
+    }
+
+    if (remaining.length <= MAX_LEN) {
+        await sock.sendMessage(jid, { text: remaining }, { quoted: msg })
+        return
+    }
+
+    while (remaining.length) {
+        let chunk = remaining.slice(0, MAX_LEN)
+        let cut = chunk.lastIndexOf('\n\n')
+
+        if (cut < 1200) cut = chunk.lastIndexOf('\n')
+        if (cut < 1000) cut = chunk.lastIndexOf(' ')
+        if (cut < 1) cut = MAX_LEN
+
+        chunk = remaining.slice(0, cut).trimEnd()
+        if (chunk) {
+            await sock.sendMessage(jid, { text: chunk }, { quoted: msg })
+        }
+        remaining = remaining.slice(cut).trimStart()
     }
 }
 
@@ -447,6 +485,7 @@ export default {
             const caption = rows
                 .map((item, index) => formatItem(item, index))
                 .join('\n\n')
+            const captionText = `\`\`\`\n${caption}\`\`\``
 
             const imageSources = []
             if (rows[0]?.image) imageSources.push(rows[0].image)
@@ -469,15 +508,18 @@ export default {
             }
 
             if (firstImage) {
-                await sock.sendMessage(jid, {
-                    image: firstImage.buffer,
-                    mimetype: firstImage.mimetype,
-                    caption: `\`\`\`\n${caption}\`\`\``
-                }, { quoted: msg })
+                try {
+                    await sock.sendMessage(jid, {
+                        image: firstImage.buffer,
+                        mimetype: firstImage.mimetype,
+                        caption: captionText
+                    }, { quoted: msg })
+                } catch (imgErr) {
+                    console.error('[shopee] image send failed:', imgErr?.message)
+                    await sendInChunks(sock, jid, captionText, msg)
+                }
             } else {
-                await sock.sendMessage(jid, {
-                    text: `\`\`\`\n${caption}\`\`\``
-                }, { quoted: msg })
+                await sendInChunks(sock, jid, captionText, msg)
             }
 
             useLimit()
