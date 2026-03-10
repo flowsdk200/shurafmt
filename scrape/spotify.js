@@ -4,9 +4,15 @@ const ENTRY_URL = 'https://spotidown.app/en1'
 const BASE_URL = 'https://spotidown.app'
 const ACTION_URL = `${BASE_URL}/action`
 const TRACK_ACTION_URL = `${BASE_URL}/action/track`
+const SPOTDOWN_BASE_URL = 'https://spotdown.org'
 const PAGE_HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36',
     'Accept-Language': 'en-US,en;q=0.9'
+}
+
+let spotdownSessionCache = {
+    token: '',
+    expires: 0
 }
 
 const extractTrackId = (url = '') => {
@@ -45,35 +51,66 @@ async function searchTracks(query, limit = 50) {
     const q = String(query || '').trim()
     if (!q) throw new Error('Query kosong')
 
-    const res = await axios.get('https://api.baguss.xyz/api/search/spotify', {
-        params: { q },
+    const token = await getSpotdownSessionToken()
+    const res = await axios.get(`${SPOTDOWN_BASE_URL}/api/song-details`, {
+        params: { url: q },
         timeout: 30000,
         headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            'User-Agent': PAGE_HEADERS['User-Agent'],
+            'Accept': 'application/json,text/plain,*/*',
+            'X-Session-Token': token
         }
     })
 
-    const items = Array.isArray(res.data?.data) ? res.data.data : []
+    if (res.data?.success === false) {
+        throw new Error(String(res.data?.message || 'Pencarian Spotify gagal'))
+    }
+
+    const items = Array.isArray(res.data?.songs) ? res.data.songs : []
     const sliced = items.slice(0, Math.max(1, Math.min(50, Number(limit) || 50)))
 
     return sliced.map((item) => {
         const durationMs = parseDurationToMs(item.duration)
         return {
-            id: extractTrackId(item.track_url),
+            id: extractTrackId(item.url),
             title: item.title,
             artists: item.artist,
-            album: item.album,
+            album: item.album || '',
             duration: durationMs,
             durationFormatted: formatDuration(durationMs),
-            releaseDate: item.release_date,
+            releaseDate: item.release_date || '',
             popularity: undefined,
             explicit: undefined,
-            preview: item.preview_url || null,
+            preview: null,
             image: item.thumbnail || null,
-            url: item.track_url,
-            uri: item.track_url
+            url: item.url,
+            uri: item.url
         }
     })
+}
+
+async function getSpotdownSessionToken() {
+    if (spotdownSessionCache.token && Date.now() < Number(spotdownSessionCache.expires || 0)) {
+        return spotdownSessionCache.token
+    }
+
+    const res = await axios.get(`${SPOTDOWN_BASE_URL}/api/get-session-token`, {
+        timeout: 30000,
+        headers: {
+            'User-Agent': PAGE_HEADERS['User-Agent'],
+            'Accept': 'application/json,text/plain,*/*'
+        }
+    })
+
+    const token = String(res.data?.token || '').trim()
+    const expires = Number(res.data?.expires || 0)
+
+    if (!token) {
+        throw new Error('Token search Spotdown tidak ditemukan')
+    }
+
+    spotdownSessionCache = { token, expires }
+    return token
 }
 
 const decodeValue = (value = '') => String(value || '')
