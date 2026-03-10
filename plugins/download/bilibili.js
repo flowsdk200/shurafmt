@@ -5,6 +5,7 @@ import vm from 'node:vm'
 import { spawn } from 'child_process'
 import axios from 'axios'
 import ffmpegPath from 'ffmpeg-static'
+import HttpsProxyAgentPkg from 'https-proxy-agent'
 
 const REQUEST_TIMEOUT = 30000
 const MEDIA_TIMEOUT = 120000
@@ -31,7 +32,28 @@ const PAGE_HEADERS = {
     cookie: BILIBILI_COOKIE
 }
 
+const { HttpsProxyAgent } = HttpsProxyAgentPkg
+
 const cleanText = (value) => String(value || '').replace(/\s+/g, ' ').trim()
+
+const getBilibiliProxyUrl = () => cleanText(
+    process.env.BILIBILI_HTTP_PROXY ||
+    process.env.BILIBILI_PROXY ||
+    process.env.DEDICATED_IP_HTTP_PROXY_1 ||
+    ''
+)
+
+const createAxiosNetworkConfig = () => {
+    const proxyUrl = getBilibiliProxyUrl()
+    if (!proxyUrl) return {}
+
+    const agent = new HttpsProxyAgent(proxyUrl)
+    return {
+        proxy: false,
+        httpAgent: agent,
+        httpsAgent: agent
+    }
+}
 
 const sanitizeFileName = (value) => {
     const text = cleanText(value).replace(/[\\/:*?"<>|]+/g, '').trim()
@@ -87,7 +109,8 @@ const fetchApi = async (baseUrl, path, params = {}) => {
         params,
         timeout: REQUEST_TIMEOUT,
         validateStatus: () => true,
-        headers: PAGE_HEADERS
+        headers: PAGE_HEADERS,
+        ...createAxiosNetworkConfig()
     })
     if (response.status !== 200) {
         throw new Error(`Bilibili API HTTP ${response.status}`)
@@ -197,9 +220,28 @@ const fetchOgvPlayback = async (source) => {
     const sections = await fetchOgvEpisodes(source.seasonId)
     const episodes = flattenOgvEpisodes(sections)
     const episode = episodes.find((item) => cleanText(item?.episode_id) === episodeId) || {}
-    const playData = await fetchApi(BILIBILI_API_WEB, 'playurl', buildOgvPlayUrlParams(episodeId))
-    const playurl = playData?.playurl || {}
-    const streams = resolveOgvPlayStreams(playurl)
+
+    let streams = null
+
+    try {
+        const playData = await fetchApi(BILIBILI_API_WEB, 'playurl', buildOgvPlayUrlParams(episodeId))
+        const playurl = playData?.playurl || {}
+        streams = resolveOgvPlayStreams(playurl)
+    } catch (err) {
+        const { state, fallbackDash } = await fetchPageState(source.sourceUrl)
+        const resolved = resolveStreams(state, fallbackDash)
+        streams = {
+            videoUrl: resolved.videoUrl,
+            audioUrl: resolved.audioUrl,
+            qualityLabel: resolved.qualityLabel,
+            durationSeconds: Math.floor((Number(state?.ogv?.epInfo?.duration) || Number(state?.player?.playUrl?.timelength) || 0) / 1000)
+        }
+
+        if (!streams.videoUrl || !streams.audioUrl) {
+            throw err
+        }
+    }
+
     const titleBits = [
         cleanText(season?.title),
         cleanText(episode?.title_display || episode?.short_title_display)
@@ -419,7 +461,8 @@ const fetchPageState = async (videoPageUrl) => {
         timeout: REQUEST_TIMEOUT,
         validateStatus: () => true,
         maxRedirects: 5,
-        responseType: 'text'
+        responseType: 'text',
+        ...createAxiosNetworkConfig()
     })
     const statusCode = response.status
     const body = response.data
@@ -510,7 +553,8 @@ const fetchMediaBuffer = async (url, referer) => {
             accept: '*/*',
             origin: 'https://www.bilibili.tv',
             referer
-        }
+        },
+        ...createAxiosNetworkConfig()
     })
     const statusCode = response.status
     const body = response.data
