@@ -1,5 +1,9 @@
 import axios from 'axios'
 import * as cheerio from 'cheerio'
+import { createRequire } from 'module'
+
+const require = createRequire(import.meta.url)
+const { Jimp } = require('jimp')
 
 const SEARCH_URL = 'https://shopee.co.id/search'
 const BASE_URL = 'https://shopee.co.id'
@@ -175,6 +179,23 @@ const sniffImageMime = (buffer) => {
     return null
 }
 
+const convertWebpToJpegIfNeeded = async (payload) => {
+    if (!payload || !Buffer.isBuffer(payload.buffer)) return payload
+    if (payload.mimetype !== 'image/webp') return payload
+
+    try {
+        const image = await Jimp.fromBuffer(payload.buffer)
+        const jpeg = await image.getBuffer('image/jpeg')
+        if (Buffer.isBuffer(jpeg) && jpeg.length) {
+            return { buffer: jpeg, mimetype: 'image/jpeg' }
+        }
+    } catch {
+        // fallback to original if conversion fails
+    }
+
+    return payload
+}
+
 const fetchImageBuffer = async (url) => {
     if (!url || !/^https?:\/\//i.test(url)) return null
 
@@ -208,6 +229,44 @@ const fetchImageBuffer = async (url) => {
     } catch {
         return null
     }
+}
+
+const sendImageMessage = async (sock, jid, msg, caption, imageSources) => {
+    const attempted = new Set()
+
+    for (const source of imageSources) {
+        const normalized = normalizeShopNameImage(normalizeImage(source))
+        if (!normalized || attempted.has(normalized)) continue
+        attempted.add(normalized)
+
+        try {
+            await sock.sendMessage(
+                jid,
+                { image: { url: normalized }, caption },
+                { quoted: msg }
+            )
+            return true
+        } catch {
+            // continue to buffered send
+        }
+
+        try {
+            const result = await fetchImageBuffer(normalized)
+            if (!result) continue
+
+            const finalImage = await convertWebpToJpegIfNeeded(result)
+            await sock.sendMessage(jid, {
+                image: finalImage.buffer,
+                mimetype: finalImage.mimetype,
+                caption
+            }, { quoted: msg })
+            return true
+        } catch {
+            // keep trying next source
+        }
+    }
+
+    return false
 }
 
 const sendInChunks = async (sock, jid, text, msg) => {
@@ -494,31 +553,8 @@ export default {
                 if (productImage) imageSources.push(productImage)
             }
 
-            let firstImage = null
-            const pushed = new Set()
-            for (const src of imageSources) {
-                const normalized = normalizeShopNameImage(normalizeImage(src))
-                if (!normalized || pushed.has(normalized)) continue
-                pushed.add(normalized)
-                const result = await fetchImageBuffer(normalized)
-                if (result) {
-                    firstImage = result
-                    break
-                }
-            }
-
-            if (firstImage) {
-                try {
-                    await sock.sendMessage(jid, {
-                        image: firstImage.buffer,
-                        mimetype: firstImage.mimetype,
-                        caption: captionText
-                    }, { quoted: msg })
-                } catch (imgErr) {
-                    console.error('[shopee] image send failed:', imgErr?.message)
-                    await sendInChunks(sock, jid, captionText, msg)
-                }
-            } else {
+            const sent = await sendImageMessage(sock, jid, msg, captionText, imageSources)
+            if (!sent) {
                 await sendInChunks(sock, jid, captionText, msg)
             }
 
