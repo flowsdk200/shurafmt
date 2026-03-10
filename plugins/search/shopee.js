@@ -1,20 +1,27 @@
 import axios from 'axios'
 import * as cheerio from 'cheerio'
 
-const SEARCH_BASE_URL = 'https://shopee.co.id/search'
+const SEARCH_URL = 'https://shopee.co.id/search'
 const BASE_URL = 'https://shopee.co.id'
-const MAX_RESULTS = 10
+const MAX_RESULTS = 15
 const REQUEST_TIMEOUT = 45000
-const DETAIL_TIMEOUT = 20000
-const DETAIL_CONCURRENCY = 3
-const BOT_USER_AGENTS = [
+const DETAIL_TIMEOUT = 15000
+const USER_AGENTS = [
     'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
-    'Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)'
+    'Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1'
 ]
 
 const cleanText = (value) => String(value || '')
     .replace(/\s+/g, ' ')
     .trim()
+
+const tokenize = (text) => cleanText(text)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/gi, ' ')
+    .split(' ')
+    .filter((w) => w && w.length >= 2)
 
 const normalizeQuery = (rawInput) => {
     const text = cleanText(rawInput)
@@ -24,11 +31,11 @@ const normalizeQuery = (rawInput) => {
         try {
             const url = new URL(text)
             if (/(^|\.)shopee\.co\.id$/i.test(url.hostname) && url.pathname.startsWith('/search')) {
-                const q = cleanText(url.searchParams.get('keyword') || url.searchParams.get('q'))
-                if (q) return q
+                const keyword = cleanText(url.searchParams.get('keyword') || url.searchParams.get('q'))
+                if (keyword) return keyword
             }
         } catch {
-            // fallback to raw text
+            // keep raw text as fallback
         }
     }
 
@@ -50,90 +57,124 @@ const normalizeImage = (value) => {
     return null
 }
 
-const parseJsonLdBlocks = (html) => {
-    const scripts = [...String(html || '').matchAll(/<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi)]
-    const rows = []
+const pickTitle = ($item) => {
+    const title = cleanText($item.find('div.line-clamp-2').first().text())
+    return title || '-'
+}
 
-    for (const match of scripts) {
-        try {
-            rows.push(JSON.parse(match[1]))
-        } catch {
-            // ignore invalid block
+const pickPrice = ($item) => {
+    const text = cleanText($item.find('div.truncate.flex.items-baseline').first().text())
+    return text ? text : '-'
+}
+
+const pickDiscount = ($item) => {
+    const text = cleanText($item.find('div.bg-shopee-pink').first().text())
+    return text || '-'
+}
+
+const pickRating = ($item) => {
+    const text = cleanText($item.find('div.text-shopee-black87').first().text())
+    return text || '-'
+}
+
+const pickLocation = ($item) => {
+    const label = $item.find('span[aria-label^="location-"]').first()
+    if (!label.length) return '-'
+
+    const raw = cleanText(label.attr('aria-label') || '')
+    if (raw) return cleanText(raw.replace(/^location-/, ''))
+
+    return cleanText(label.closest('div').text()) || '-'
+}
+
+const normalizeImageFromCard = ($item) => {
+    const images = $item
+        .find('img')
+        .map((_, el) => normalizeImage(el.attribs?.src))
+        .get()
+        .concat($item.find('img').map((_, el) => normalizeImage(el.attribs?.['data-src'])).get())
+        .filter(Boolean)
+
+    return images.find((src) => /susercontent\.com\/file\//i.test(src) && !/_tn\.gif$/i.test(src)) ||
+        images[0] ||
+        null
+}
+
+const pickRelevance = ($item, keywords) => {
+    if (!keywords.length) return 1
+
+    const title = cleanText($item.find('div.line-clamp-2').first().text()).toLowerCase()
+    if (!title) return 0
+
+    let score = 0
+    for (const keyword of keywords) {
+        if (title.includes(keyword)) {
+            score += 1
+        }
+    }
+
+    return score
+}
+
+const isProductHref = (href) => {
+    if (!href) return false
+    return /-i\.\d+\.\d+/.test(href)
+}
+
+const parseRows = (html, keywords = []) => {
+    const $ = cheerio.load(String(html || ''))
+    const rows = []
+    const seen = new Set()
+
+    $('li.shopee-search-item-result__item').each((_, itemEl) => {
+        const $anchor = $(itemEl).find('a.contents').first()
+        if (!$anchor.length) return
+
+        const link = toAbsoluteUrl($anchor.attr('href'))
+        if (!isProductHref(link)) return
+        if (seen.has(link)) return
+
+        const title = pickTitle($anchor)
+        if (!title || title === '-') return
+
+        const relevance = pickRelevance($anchor, keywords)
+        const item = {
+            title,
+            link,
+            shop: '-',
+            price: pickPrice($anchor),
+            discount: pickDiscount($anchor),
+            rating: pickRating($anchor),
+            location: pickLocation($anchor),
+            image: normalizeImageFromCard($anchor),
+            relevance
+        }
+        rows.push(item)
+        seen.add(link)
+
+        if (rows.length >= MAX_RESULTS) {
+            return false
+        }
+    })
+
+    if (keywords.length) {
+        const matched = rows.filter((row) => row.relevance > 0)
+        if (matched.length > 0) {
+            const unmatched = rows.filter((row) => row.relevance === 0)
+            return [...matched, ...unmatched].slice(0, MAX_RESULTS)
         }
     }
 
     return rows
 }
 
-const normalizeDetailImage = (value) => {
-    const raw = cleanText(value)
-    if (!raw) return null
-    if (/^https?:\/\//i.test(raw)) return raw
-    if (/^[\w-]+\.[\w-]+\/file\//i.test(raw)) return `https://${raw}`
-    return null
-}
-
-const parseCard = ($, $item) => {
-    const $anchor = $item.find('a.contents').first()
-    const link = toAbsoluteUrl($anchor.attr('href'))
-    if (!link) return null
-
-    const title = cleanText($anchor.find('div.line-clamp-2').first().text())
-    if (!title) return null
-
-    const image = $anchor.find('img')
-        .map((_, el) => normalizeImage($(el).attr('src')))
-        .get()
-        .filter(Boolean)
-        .find((src) => /susercontent\.com\/file\//i.test(src) && !/_tn\.gif$/i.test(src)) || null
-
-    const price = cleanText($anchor.find('span[aria-label="promotion price"]').parent().siblings('div.truncate.flex.items-baseline').text())
-        || cleanText($anchor.find('div.truncate.flex.items-baseline').first().text())
-        || '-'
-
-    const discount = cleanText($anchor.find('div.bg-shopee-pink').first().text()) || '-'
-    const rating = cleanText($anchor.find('div.text-shopee-black87').first().text()) || '-'
-    const location = cleanText($anchor.find('span[aria-label^="location-"]').parent().find('span').last().text()) || '-'
-
-    const itemMatch = link.match(/-i\.(\d+)\.(\d+)/i)
-
-    return {
-        title,
-        link,
-        image,
-        price,
-        discount,
-        rating,
-        location,
-        shop: '-',
-        shopId: itemMatch?.[1] || '-',
-        itemId: itemMatch?.[2] || '-'
-    }
-}
-
-const parseResults = (html) => {
-    const $ = cheerio.load(String(html || ''))
-    const rows = []
-    const seen = new Set()
-
-    $('li.shopee-search-item-result__item').each((_, el) => {
-        const row = parseCard($, $(el))
-        if (!row) return
-        if (seen.has(row.link)) return
-        seen.add(row.link)
-        rows.push(row)
-        if (rows.length >= MAX_RESULTS) return false
-    })
-
-    return rows
-}
-
 const fetchSearchHtml = async (query) => {
-    let lastErr = null
+    const keywords = tokenize(query)
+    let lastError = null
 
-    for (const userAgent of BOT_USER_AGENTS) {
+    for (const userAgent of USER_AGENTS) {
         try {
-            const { data, status } = await axios.get(SEARCH_BASE_URL, {
+            const { data, status } = await axios.get(SEARCH_URL, {
                 params: { keyword: query },
                 timeout: REQUEST_TIMEOUT,
                 maxRedirects: 5,
@@ -147,103 +188,28 @@ const fetchSearchHtml = async (query) => {
                 }
             })
 
-            const html = String(data || '')
             if (status !== 200) {
-                lastErr = new Error(`HTTP ${status}`)
+                lastError = new Error(`HTTP ${status}`)
                 continue
             }
 
-            if (!html || html.length < 5000) {
-                lastErr = new Error('Respons HTML Shopee tidak valid')
+            const rows = parseRows(data, keywords)
+            if (!rows.length) {
+                lastError = new Error('Produk tidak ditemukan pada respons Shopee')
                 continue
             }
 
-            if (!/shopee-search-item-result__item/i.test(html)) {
-                lastErr = new Error('Card produk Shopee tidak ditemukan')
-                continue
-            }
-
-            return { html, userAgent }
+            return rows
         } catch (err) {
-            lastErr = err
+            lastError = err
         }
     }
 
-    throw lastErr || new Error('Gagal mengambil HTML Shopee')
-}
-
-const extractDetailMeta = (html) => {
-    for (const block of parseJsonLdBlocks(html)) {
-        const type = cleanText(block?.['@type']).toLowerCase()
-        if (type !== 'product') continue
-
-        const sellerName = cleanText(block?.offers?.seller?.name || block?.seller?.name)
-        const detailImage = Array.isArray(block?.image)
-            ? normalizeDetailImage(block.image[0])
-            : normalizeDetailImage(block?.image)
-
-        return {
-            shop: sellerName || '-',
-            image: detailImage || null
-        }
-    }
-
-    return {
-        shop: '-',
-        image: null
-    }
-}
-
-const fetchDetailMeta = async (link, userAgent) => {
-    if (!link) return { shop: '-', image: null }
-
-    const { data, status } = await axios.get(link, {
-        timeout: DETAIL_TIMEOUT,
-        maxRedirects: 5,
-        validateStatus: () => true,
-        headers: {
-            'User-Agent': userAgent,
-            'Accept-Language': 'id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache'
-        }
-    })
-
-    if (status !== 200) return { shop: '-', image: null }
-    return extractDetailMeta(data)
-}
-
-const enrichRowsWithDetail = async (rows, userAgent) => {
-    const output = rows.map((row) => ({ ...row }))
-    let cursor = 0
-
-    const worker = async () => {
-        while (cursor < output.length) {
-            const index = cursor++
-            const row = output[index]
-
-            try {
-                const detail = await fetchDetailMeta(row.link, userAgent)
-                row.shop = detail.shop || row.shop || '-'
-                row.image = detail.image || row.image || null
-            } catch {
-                row.shop = row.shop || '-'
-            }
-        }
-    }
-
-    const workers = Array.from(
-        { length: Math.min(DETAIL_CONCURRENCY, output.length) },
-        () => worker()
-    )
-
-    await Promise.all(workers)
-    return output
+    throw lastError || new Error('Gagal mengambil data Shopee')
 }
 
 const fetchImageBuffer = async (url, referer) => {
-    const target = normalizeImage(url) || normalizeDetailImage(url)
+    const target = normalizeImage(url)
     if (!target) return null
 
     const { data, status } = await axios.get(target, {
@@ -251,7 +217,7 @@ const fetchImageBuffer = async (url, referer) => {
         timeout: DETAIL_TIMEOUT,
         validateStatus: () => true,
         headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'User-Agent': USER_AGENTS[0],
             'Referer': referer || BASE_URL
         }
     })
@@ -286,9 +252,7 @@ export default {
         await react('⏳')
 
         try {
-            const { html, userAgent } = await fetchSearchHtml(q)
-            const parsedRows = parseResults(html)
-            const rows = await enrichRowsWithDetail(parsedRows, userAgent)
+            const rows = await fetchSearchHtml(q)
 
             if (!rows.length) {
                 await react('❌')
@@ -306,11 +270,11 @@ export default {
                 const imageBuffer = await fetchImageBuffer(firstImage, rows[0]?.link)
                 await sock.sendMessage(jid, {
                     image: imageBuffer || { url: firstImage },
-                    caption: `\`\`\`${caption}\`\`\``
+                    caption: `\`\`\`\n${caption}\`\`\``
                 }, { quoted: msg })
             } else {
                 await sock.sendMessage(jid, {
-                    text: `\`\`\`${caption}\`\`\``
+                    text: `\`\`\`\n${caption}\`\`\``
                 }, { quoted: msg })
             }
 
