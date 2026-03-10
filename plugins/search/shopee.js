@@ -5,7 +5,6 @@ const SEARCH_URL = 'https://shopee.co.id/search'
 const BASE_URL = 'https://shopee.co.id'
 const MAX_RESULTS = 15
 const REQUEST_TIMEOUT = 45000
-const DETAIL_TIMEOUT = 15000
 const USER_AGENTS = [
     'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
     'Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)',
@@ -88,16 +87,85 @@ const pickLocation = ($item) => {
 }
 
 const normalizeImageFromCard = ($item) => {
-    const images = $item
-        .find('img')
-        .map((_, el) => normalizeImage(el.attribs?.src))
-        .get()
-        .concat($item.find('img').map((_, el) => normalizeImage(el.attribs?.['data-src'])).get())
+    const rawCandidates = []
+
+    $item.find('img').each((_, el) => {
+        rawCandidates.push(el.attribs?.src || '')
+        rawCandidates.push(el.attribs?.['data-src'] || '')
+    })
+
+    $item.find('[aria-label]').each((_, el) => {
+        const label = cleanText(el.attribs?.ariaLabel || '')
+        const match = label.match(/src:([^\s,]+)/i)
+        if (match?.[1]) rawCandidates.push(match[1])
+    })
+
+    const images = rawCandidates
+        .map((value) => normalizeImage(value))
         .filter(Boolean)
 
-    return images.find((src) => /susercontent\.com\/file\//i.test(src) && !/_tn\.gif$/i.test(src)) ||
+    return images.find((src) => /susercontent\.com\/file\//i.test(src) && !/_tn\.gif$/i.test(src) && !/_tn\.webp$/i.test(src)) ||
+        images.find((src) => /susercontent\.com\/file\//i.test(src)) ||
+        images.find((src) => /\/file\//i.test(src)) ||
+        images.find((src) => /shopee\.(?:com|mobile)\/.*\.(webp|jpg|jpeg|png)/i.test(src)) ||
         images[0] ||
         null
+}
+
+const extractShopId = ($item) => {
+    const shopLink = $item.find('a[href*="shopid="]').first().attr('href') || ''
+    const match = String(shopLink).match(/(?:\?|&)shopid=(\d+)/i)
+    return match?.[1] || null
+}
+
+const shopNameCache = new Map()
+
+const fetchShopName = async (shopId) => {
+    if (!shopId) return '-'
+    if (shopNameCache.has(shopId)) return shopNameCache.get(shopId) || '-'
+
+    try {
+        const { data, status } = await axios.get(`${BASE_URL}/api/v4/shop/get_shop_base`, {
+            params: { shopid: shopId },
+            timeout: 12000,
+            validateStatus: () => true,
+            headers: {
+                'User-Agent': USER_AGENTS[0],
+                'Accept-Language': 'id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7'
+            }
+        })
+
+        if (status !== 200) {
+            shopNameCache.set(shopId, '-')
+            return '-'
+        }
+
+        const shopName = cleanText(data?.data?.name || data?.name || '')
+        const result = shopName || '-'
+        shopNameCache.set(shopId, result)
+        return result
+    } catch {
+        shopNameCache.set(shopId, '-')
+        return '-'
+    }
+}
+
+const enrichShopNames = async (rows) => {
+    const pending = []
+    const seen = new Set()
+
+    for (const row of rows) {
+        if (!row.shopId || seen.has(row.shopId)) continue
+        seen.add(row.shopId)
+        pending.push((async () => {
+            const name = await fetchShopName(row.shopId)
+            row.shop = name
+            return { shopId: row.shopId, name }
+        })())
+    }
+
+    await Promise.all(pending.slice(0, 8))
+    return rows
 }
 
 const pickRelevance = ($item, keywords) => {
@@ -147,6 +215,7 @@ const parseRows = (html, keywords = []) => {
             rating: pickRating($anchor),
             location: pickLocation($anchor),
             image: normalizeImageFromCard($anchor),
+            shopId: extractShopId($(itemEl)),
             relevance
         }
         rows.push(item)
@@ -208,24 +277,6 @@ const fetchSearchHtml = async (query) => {
     throw lastError || new Error('Gagal mengambil data Shopee')
 }
 
-const fetchImageBuffer = async (url, referer) => {
-    const target = normalizeImage(url)
-    if (!target) return null
-
-    const { data, status } = await axios.get(target, {
-        responseType: 'arraybuffer',
-        timeout: DETAIL_TIMEOUT,
-        validateStatus: () => true,
-        headers: {
-            'User-Agent': USER_AGENTS[0],
-            'Referer': referer || BASE_URL
-        }
-    })
-
-    if (status !== 200 || !data) return null
-    return Buffer.from(data)
-}
-
 const formatItem = (item, index) =>
     `${index + 1}. ${item.title}\n` +
     `• Harga: ${item.price}\n` +
@@ -253,6 +304,7 @@ export default {
 
         try {
             const rows = await fetchSearchHtml(q)
+            await enrichShopNames(rows)
 
             if (!rows.length) {
                 await react('❌')
@@ -267,9 +319,8 @@ export default {
 
             const firstImage = rows[0]?.image
             if (firstImage) {
-                const imageBuffer = await fetchImageBuffer(firstImage, rows[0]?.link)
                 await sock.sendMessage(jid, {
-                    image: imageBuffer || { url: firstImage },
+                    image: { url: firstImage },
                     caption: `\`\`\`\n${caption}\`\`\``
                 }, { quoted: msg })
             } else {
