@@ -134,6 +134,7 @@ function buildFailureMessage(current = {}) {
     const detail =
         raw?.message ||
         raw?.error?.message ||
+        raw?.error ||
         raw?.errorMessage ||
         raw?.reason ||
         raw?.info ||
@@ -147,33 +148,38 @@ function buildFailureMessage(current = {}) {
     return `Upscale gagal dengan status ${status}.`
 }
 
-async function uploadBufferToCatbox(buffer, options = {}) {
+async function uploadBufferToTmpfiles(buffer, options = {}) {
     const fileBuffer = normalizeBuffer(buffer)
     if (!fileBuffer?.length) {
         throw new Error('Buffer gambar tidak valid.')
     }
 
     const form = new FormData()
-    form.append('reqtype', 'fileupload')
-    form.append('fileToUpload', fileBuffer, {
+    form.append('file', fileBuffer, {
         filename: String(options.filename || 'upscale-input.jpg'),
         contentType: options.contentType || 'image/jpeg'
     })
 
     try {
-        const { data } = await axios.post('https://catbox.moe/user/api.php', form, {
+        const { data } = await axios.post('https://tmpfiles.org/api/v1/upload', form, {
             headers: form.getHeaders(),
             timeout: Number(options.uploadTimeout || 120000),
             maxBodyLength: Infinity,
             maxContentLength: Infinity
         })
 
-        const url = String(data || '').trim()
-        if (!/^https?:\/\//i.test(url)) {
-            throw new Error(url || 'Upload Catbox gagal.')
+        const uploadedPageUrl = String(data?.data?.url || '').trim()
+        if (!uploadedPageUrl) {
+            throw new Error(data?.message || 'Upload tmpfiles gagal.')
         }
 
-        return url
+        const httpsPageUrl = uploadedPageUrl.replace(/^http:\/\//i, 'https://')
+        const directUrl = httpsPageUrl.replace(/^https:\/\/tmpfiles\.org\//i, 'https://tmpfiles.org/dl/')
+        if (!/^https:\/\/tmpfiles\.org\/dl\//i.test(directUrl)) {
+            throw new Error('URL upload tmpfiles tidak valid.')
+        }
+
+        return directUrl
     } catch (error) {
         throw new Error(makeAxiosErrorMessage(error))
     }
@@ -214,7 +220,7 @@ async function resolveUpscaleInput(input, options = {}) {
 
     const buffer = normalizeBuffer(input)
     if (buffer) {
-        return uploadBufferToCatbox(buffer, options)
+        return uploadBufferToTmpfiles(buffer, options)
     }
 
     throw new Error('Input upscale harus berupa URL publik atau Buffer gambar.')
@@ -244,6 +250,7 @@ async function startUpscaleFromUrl(imageUrl, options = {}) {
         return {
             clientId,
             isoTimestamp,
+            inputUrl: url,
             predictionId: extractPredictionId(data),
             status: data?.status || '',
             url: data?.urls?.get || '',
@@ -313,7 +320,7 @@ async function upscaleFromUrl(imageUrl, options = {}) {
     const finished = await waitUpscalePrediction(started.predictionId, options)
     return {
         provider: 'Upscale.media',
-        imageUrl: normalizeUrl(imageUrl),
+        imageUrl: normalizeUrl(started.inputUrl || imageUrl),
         predictionId: started.predictionId,
         status: finished.status,
         url: finished.output,
@@ -338,7 +345,8 @@ export {
     signUpscalePrediction,
     startUpscale,
     startUpscaleFromUrl,
-    uploadBufferToCatbox,
+    uploadBufferToTmpfiles,
+    uploadBufferToTmpfiles as uploadBufferToCatbox,
     upscale,
     upscaleFromUrl,
     waitUpscalePrediction
