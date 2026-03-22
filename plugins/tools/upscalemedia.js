@@ -11,30 +11,78 @@ const streamToBuffer = async (stream) => {
     return Buffer.concat(chunks)
 }
 
-const MAX_UPSCALE_DIMENSION = 4096
+const SCALE_DIMENSION_LIMITS = {
+    '1X': 10000,
+    '2X': 5000,
+    '4X': 2500,
+    '8X': 1250
+}
 
-const normalizeImageBuffer = async (buffer) => {
+const MIME_EXTENSION_MAP = {
+    'image/jpeg': 'jpg',
+    'image/jpg': 'jpg',
+    'image/png': 'png',
+    'image/webp': 'webp'
+}
+
+const NORMALIZABLE_MIMES = new Set(Object.keys(MIME_EXTENSION_MAP))
+
+const normalizeImageBuffer = async (buffer, options = {}) => {
+    const inputContentType = String(options.contentType || '').toLowerCase() || 'image/jpeg'
+    const outputLimit = Number(SCALE_DIMENSION_LIMITS[String(options.scale || '').toUpperCase()] || 2500)
+
     try {
         const image = await Jimp.fromBuffer(buffer)
         const width = Number(image?.bitmap?.width || 0)
         const height = Number(image?.bitmap?.height || 0)
-        const longestSide = Math.max(width, height)
+        const needsResize = width > outputLimit || height > outputLimit
+        const canKeepOriginal = NORMALIZABLE_MIMES.has(inputContentType)
 
-        if (longestSide > MAX_UPSCALE_DIMENSION && width > 0 && height > 0) {
-            const ratio = MAX_UPSCALE_DIMENSION / longestSide
+        if (!needsResize && canKeepOriginal) {
+            return {
+                buffer,
+                contentType: inputContentType,
+                filename: `upscale-input.${MIME_EXTENSION_MAP[inputContentType]}`,
+                normalizedAs: inputContentType,
+                maxDimension: outputLimit
+            }
+        }
+
+        if (needsResize && width > 0 && height > 0) {
+            const ratio = Math.min(outputLimit / width, outputLimit / height)
             image.resize({
                 w: Math.max(1, Math.floor(width * ratio)),
                 h: Math.max(1, Math.floor(height * ratio))
             })
         }
 
-        if (typeof image.quality === 'function') {
-            image.quality(90)
+        if (inputContentType === 'image/png' || inputContentType === 'image/webp') {
+            return {
+                buffer: await image.getBuffer('image/png'),
+                contentType: 'image/png',
+                filename: 'upscale-input.png',
+                normalizedAs: 'image/png',
+                maxDimension: outputLimit
+            }
         }
 
-        return await image.getBuffer('image/jpeg')
+        if (typeof image.quality === 'function') image.quality(95)
+
+        return {
+            buffer: await image.getBuffer('image/jpeg'),
+            contentType: 'image/jpeg',
+            filename: 'upscale-input.jpg',
+            normalizedAs: 'image/jpeg',
+            maxDimension: outputLimit
+        }
     } catch {
-        return buffer
+        return {
+            buffer,
+            contentType: inputContentType || 'image/jpeg',
+            filename: `upscale-input.${MIME_EXTENSION_MAP[inputContentType] || 'jpg'}`,
+            normalizedAs: inputContentType || 'image/jpeg',
+            maxDimension: outputLimit
+        }
     }
 }
 
@@ -48,11 +96,11 @@ const makeUserErrorMessage = (error) => {
 
 export default {
     name: 'uhd',
-    aliases: ['upscaler'],
+    aliases: ['hdr'],
     description: 'Upscale gambar pakai Upscale.media',
     execute: async ({ sock, msg, isQuoted, quotedMsg, quotedType, react, useLimit, prefix, command }) => {
         const jid = msg.key.remoteJid
-        const scale = '2X'
+        const scale = '4X'
 
         let image = null
         if (isQuoted && quotedType === 'imageMessage' && quotedMsg?.imageMessage) {
@@ -69,14 +117,19 @@ export default {
 
         await react('⏳')
 
+        let prepared = null
+
         try {
             const stream = await downloadContentFromMessage(image, 'image')
             const input = await streamToBuffer(stream)
-            const normalized = await normalizeImageBuffer(input)
-            const result = await upscale(normalized, {
+            prepared = await normalizeImageBuffer(input, {
+                scale,
+                contentType: image?.mimetype || 'image/jpeg'
+            })
+            const result = await upscale(prepared.buffer, {
                 type: scale,
-                filename: 'upscale-input.jpg',
-                contentType: 'image/jpeg',
+                filename: prepared.filename,
+                contentType: prepared.contentType,
                 maxPoll: 40,
                 intervalMs: 2000
             })
@@ -95,8 +148,10 @@ export default {
                 predictionId: err?.predictionId,
                 details: err?.details,
                 inputMimetype: image?.mimetype,
-                normalizedAs: 'image/jpeg',
-                maxDimension: MAX_UPSCALE_DIMENSION,
+                normalizedAs: prepared?.normalizedAs,
+                preparedContentType: prepared?.contentType,
+                preparedFilename: prepared?.filename,
+                maxDimension: prepared?.maxDimension,
                 stack: err?.stack
             })
             await react('❌')

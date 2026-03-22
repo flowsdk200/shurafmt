@@ -191,6 +191,16 @@ function applyPredictionOptions(form, options = {}) {
         form.append('input.type', type)
     }
 
+    const enhanceQuality = typeof options.enhanceQuality === 'boolean'
+        ? options.enhanceQuality
+        : typeof options.artefactRemoval === 'boolean'
+            ? options.artefactRemoval
+            : typeof options.artifactRemoval === 'boolean'
+                ? options.artifactRemoval
+                : false
+
+    form.append('input.enhance_quality', String(enhanceQuality))
+
     if (options.targetSize) {
         form.append('input.target_size', String(options.targetSize))
     }
