@@ -13,6 +13,17 @@ const fetchBuffer = async (url) => {
     return Buffer.from(data)
 }
 
+const buildPreviewText = (result) => {
+    const raw = String(result?.caption || result?.postTitle || result?.title || '').trim()
+    if (!raw) return ''
+
+    return raw
+        .replace(/\s+/g, ' ')
+        .split('\n')[0]
+        .trim()
+        .slice(0, 80)
+}
+
 const formatCaption = (result) => {
     const author = result?.author || {}
     const stats = result?.stats || {}
@@ -22,7 +33,7 @@ const formatCaption = (result) => {
     const followers = author?.followersCount || '-'
     const likes = stats?.likes || '-'
     const comments = stats?.comments || '-'
-    const title = String(result?.title || result?.postTitle || result?.caption || '').trim().split('\n')[0].slice(0, 80) || '-'
+    const preview = buildPreviewText(result)
 
     if (type === 'story') {
         return (
@@ -35,7 +46,7 @@ const formatCaption = (result) => {
 
     return (
         `\`\`\`✅ INSTAGRAM ${result?.type.toUpperCase()}\n\n` +
-        `• Title: ${title}\n` +
+        `${preview ? `• Caption: ${preview}\n` : ''}` +
         `• Author: ${authorLine}\n` +
         `• Verified: ${verified}\n` +
         `• Followers: ${followers}\n` +

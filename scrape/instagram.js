@@ -53,6 +53,8 @@ function decodeEscapes(input) {
   let out = String(input || '');
   if (!out) return '';
 
+  out = out.replace(/\\\\u/g, '\\u');
+
   out = out.replace(/\\u[dD][89abAB][0-9a-fA-F]{2}\\u[dD][cdefCDEF][0-9a-fA-F]{2}/g, (pair) => {
     const hi = parseInt(pair.slice(2, 6), 16);
     const lo = parseInt(pair.slice(8, 12), 16);
@@ -375,7 +377,7 @@ async function getMetadata(shortcode) {
         if (scMedia?.owner?.profile_pic_url) author.avatar = String(scMedia.owner.profile_pic_url);
 
         const cap = scMedia?.edge_media_to_caption?.edges?.[0]?.node?.text;
-        if (cap) caption = String(cap);
+        if (cap) caption = decodeEscapes(String(cap));
 
         postId = scMedia?.id ? String(scMedia.id) : postId;
 
