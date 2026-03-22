@@ -3,13 +3,6 @@ import { tiktok2, tiktok3, searchTikTok } from '../../scrape/tiktok.js'
 
 const TIKTOK_REGEX = /https?:\/\/(vm\.|vt\.|www\.|m\.)?tiktok\.com\/[^\s]+/i
 
-const fmtNum = (n) => {
-    if (!n && n !== 0) return '?'
-    if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M'
-    if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K'
-    return String(n)
-}
-
 const toNum = (value) => {
     if (value === undefined || value === null || value === '') return undefined
     if (typeof value === 'number') return Number.isFinite(value) ? value : undefined
@@ -30,47 +23,15 @@ const pickStat = (stats, keys = []) => {
     return undefined
 }
 
-const fmtDur = (s) => {
-    if (!s) return '?'
-    const m = Math.floor(s / 60)
-    const sec = String(s % 60).padStart(2, '0')
-    return `${m}:${sec}`
-}
-
-const formatCaption = ({ type = 'media', title = '-', author = {}, stats = {}, duration = 0 }) => {
+const formatCaption = ({ title = '-', author = {} }) => {
     const authorLine = author?.username ? `@${author.username}` : (author?.nickname || '-')
-    const likes = fmtNum(toNum(pickStat(stats, ['likes', 'like_count', 'digg_count'])))
-    const comments = fmtNum(toNum(pickStat(stats, ['comments', 'comment_count'])))
-    const views = fmtNum(toNum(pickStat(stats, ['plays', 'play_count', 'views', 'view_count'])))
-    const shares = fmtNum(toNum(pickStat(stats, ['shares', 'share_count', 'shareCount'])))
-    const saved = fmtNum(toNum(pickStat(stats, [
-        'saves',
-        'saved',
-        'collect_count',
-        'collectCount',
-        'collects',
-        'collects_count',
-        'saved_count',
-        'save_count',
-        'download_count',
-        'downloadCount',
-        'downloads'
-    ])))
-    const dur = duration ? fmtDur(duration) : '-'
-    const durationLine = type === 'photo' ? '' : `\`\`\`• Duration: ${dur}\`\`\`\n`
-
     return (
-        `\`Author: ${authorLine}\`\n\n` +
-        `${String(title || '-').trim() || '-'}\n\n` +
-        durationLine +
-        `\`\`\`• Likes: ${likes}\n` +
-        `• Comments: ${comments}\n` +
-        `• Views: ${views}\n` +
-        `• Shares: ${shares}\n` +
-        `• Saved: ${saved}\`\`\``
+        `\`Author: ${authorLine}\`
+
+` +
+        `${String(title || '-').trim() || '-'}`
     )
 }
-
 const fetchBuffer = async (url) => {
     const { data } = await axios.get(url, {
         responseType: 'arraybuffer',
