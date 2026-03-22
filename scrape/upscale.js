@@ -129,6 +129,24 @@ function makeAxiosErrorMessage(error) {
     return error.message || 'Request upscale gagal.'
 }
 
+function buildFailureMessage(current = {}) {
+    const raw = current.raw || {}
+    const detail =
+        raw?.message ||
+        raw?.error?.message ||
+        raw?.errorMessage ||
+        raw?.reason ||
+        raw?.info ||
+        ''
+
+    const status = String(current.status || 'UNKNOWN')
+    if (detail) {
+        return `Upscale gagal dengan status ${status}: ${String(detail).trim()}`
+    }
+
+    return `Upscale gagal dengan status ${status}.`
+}
+
 async function uploadBufferToCatbox(buffer, options = {}) {
     const fileBuffer = normalizeBuffer(buffer)
     if (!fileBuffer?.length) {
@@ -273,7 +291,11 @@ async function waitUpscalePrediction(predictionId, options = {}) {
         }
 
         if (['FAILED', 'FAILURE', 'ERROR', 'CANCELLED'].includes(current.status)) {
-            throw new Error(`Upscale gagal dengan status ${current.status}.`)
+            const error = new Error(buildFailureMessage(current))
+            error.status = current.status
+            error.predictionId = current.predictionId
+            error.details = current.raw
+            throw error
         }
 
         await sleep(intervalMs)
