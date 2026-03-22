@@ -1,5 +1,6 @@
 import axios from 'axios'
 import * as cheerio from 'cheerio'
+import { CookieJar } from 'tough-cookie'
 import vm from 'vm'
 
 let _gotScraping = null;
@@ -15,19 +16,16 @@ async function getGotScraping() {
 
 const TIMEOUT = {
   LONG: 30000,
-  EXTRA_LONG: 60000,
-  BYPASS: 120000
+  EXTRA_LONG: 60000
 };
 
 const HTTP_CONFIG = {
   USER_AGENT: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36'
 };
 
-const SAVEVID_API = 'https://v3.savevid.net/api/ajaxSearch';
-const SAVEVID_REFERER = 'https://v3.savevid.net/en';
-const SAVEVID_SITEKEY = '0x4AAAAAAA4IDAOil0Jqxtin';
-const TURNSTILE_BYPASS_API = 'https://flowzsh-solver.hf.space/api/v1/solve';
 const EMBED_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
+const SNAPINSTA_REFERER = 'https://snapinsta.to/en2';
+const SNAPINSTA_USERVERIFY_API = 'https://snapinsta.to/api/userverify';
 
 const formatCount = (num) => {
   const n = Number(num);
@@ -102,33 +100,6 @@ function getPostType(input) {
   return 'post';
 }
 
-async function bypassTurnstile(url, siteKey, retry = 2) {
-  let lastError = null;
-  for (let i = 0; i < retry; i += 1) {
-    try {
-      const res = await axios.post(
-        TURNSTILE_BYPASS_API,
-        { url, siteKey },
-        {
-          timeout: TIMEOUT.BYPASS,
-          headers: {
-            'Content-Type': 'application/json',
-            'User-Agent': HTTP_CONFIG.USER_AGENT
-          }
-        }
-      );
-
-      const token = res?.data?.result || res?.data?.token;
-      const ok = Boolean(res?.data?.success && token);
-      if (ok) return { success: true, token };
-      lastError = new Error(res?.data?.message || 'solver gagal');
-    } catch (err) {
-      lastError = err;
-    }
-  }
-  return { success: false, token: null, error: lastError };
-}
-
 function decodeObfuscated(code) {
   let result = '';
   const sandbox = {
@@ -152,6 +123,8 @@ function decodeSnapCdnDownload(url) {
     const u = new URL(String(url || '').trim());
     const token = u.searchParams.get('token');
     if (!token) return null;
+    if (!/(^|\.)dl\.snapcdn\.app$/i.test(u.hostname)) return null;
+    if (!/^\/(?:download|get)\b/i.test(u.pathname)) return null;
 
     const parts = token.split('.');
     if (parts.length < 2) return null;
@@ -191,7 +164,7 @@ function parseMedia(html) {
   const pushMedia = (type, url, thumb) => {
     const u = String(url || '').trim();
     if (!u) return;
-    const snap = /dl\.snapcdn\.app\/download\?token=/i.test(u) ? decodeSnapCdnDownload(u) : null;
+    const snap = /dl\.snapcdn\.app\/(?:download|get)\?token=/i.test(u) ? decodeSnapCdnDownload(u) : null;
     const dedupKey = snap?.srcUrl || snap?.filename || u;
     if (seen.has(dedupKey)) return;
     if (/google\.com|googleusercontent|recaptcha|savevid\.net\/en/i.test(u)) return;
@@ -211,7 +184,7 @@ function parseMedia(html) {
   const detectKind = (href, text) => {
     const h = String(href || '').toLowerCase();
     const t = String(text || '').toLowerCase();
-    const snap = /dl\.snapcdn\.app\/download\?token=/i.test(href) ? decodeSnapCdnDownload(href) : null;
+    const snap = /dl\.snapcdn\.app\/(?:download|get)\?token=/i.test(href) ? decodeSnapCdnDownload(href) : null;
     if (snap?.kind) return { kind: snap.kind, snap };
 
     if (/\.(mp4|mov|mkv|webm|3gp)(\?|$)/i.test(h) || /\bvideo\b|\bmp4\b|\bhd\b|\bsd\b/i.test(t)) {
@@ -279,6 +252,15 @@ function parseMedia(html) {
   }
 
   return media;
+}
+
+function parseSnapInstaConfig(html = '') {
+  const src = String(html || '');
+  return {
+    searchUrl: src.match(/k_url_search="([^"]+)"/i)?.[1] || 'https://snapinsta.to/api/ajaxSearch',
+    version: src.match(/k_ver="([^"]+)"/i)?.[1] || 'v2',
+    lang: src.match(/k_lang="([^"]+)"/i)?.[1] || 'en'
+  };
 }
 
 async function fetchInstagramPageHtml(shortcode) {
@@ -609,67 +591,97 @@ async function getStoryAuthor(username) {
   return author;
 }
 
-async function fetchFromSaveVid(query) {
-  const bypass = await bypassTurnstile(SAVEVID_REFERER, SAVEVID_SITEKEY, 2);
-  if (!bypass.success || !bypass.token) {
-    throw new Error('Failed to bypass turnstile');
-  }
-
-  const payload = `q=${encodeURIComponent(query)}&t=media&lang=en&v=v2&cftoken=${encodeURIComponent(bypass.token)}`;
+async function fetchFromSnapInsta(query) {
   const gotScraping = await getGotScraping();
-  const res = await gotScraping.post(SAVEVID_API, {
-    body: payload,
+  const cookieJar = new CookieJar();
+  const commonHeaders = {
+    accept: '*/*',
+    'x-requested-with': 'XMLHttpRequest',
+    origin: 'https://snapinsta.to',
+    referer: SNAPINSTA_REFERER,
+    'user-agent': HTTP_CONFIG.USER_AGENT
+  };
+
+  const pageRes = await gotScraping({
+    url: SNAPINSTA_REFERER,
+    cookieJar,
     headers: {
-      'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
-      accept: '*/*',
-      origin: 'https://v3.savevid.net',
-      referer: SAVEVID_REFERER,
+      'accept-language': 'en-US,en;q=0.9',
       'user-agent': HTTP_CONFIG.USER_AGENT
     },
     timeout: { request: TIMEOUT.EXTRA_LONG },
     throwHttpErrors: false
   });
 
-  const data = res?.body;
-  if (typeof data === 'string' && /<!doctype html>|just a moment|cf-challenge/i.test(data)) {
-    throw new Error('Savevid blocked by Cloudflare');
+  if (!pageRes || pageRes.statusCode < 200 || pageRes.statusCode >= 400) {
+    throw new Error(`SnapInsta HTTP ${pageRes?.statusCode || 0}`);
   }
 
-  if (res?.statusCode && res.statusCode >= 400) {
-    throw new Error(`Savevid HTTP ${res.statusCode}`);
+  const pageHtml = String(pageRes.body || '');
+  if (!pageHtml || /just a moment|cf-challenge/i.test(pageHtml)) {
+    throw new Error('SnapInsta blocked by Cloudflare');
   }
 
-  let parsed = data;
-  if (typeof parsed === 'string') {
-    const raw = parsed.trim();
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      const fromFirstBrace = raw.slice(Math.max(0, raw.indexOf('{')));
-      try {
-        parsed = JSON.parse(fromFirstBrace);
-      } catch {
-        parsed = null;
-      }
-    }
+  const config = parseSnapInstaConfig(pageHtml);
+
+  const verifyRes = await gotScraping.post(SNAPINSTA_USERVERIFY_API, {
+    cookieJar,
+    headers: commonHeaders,
+    form: { url: query },
+    responseType: 'json',
+    timeout: { request: TIMEOUT.EXTRA_LONG },
+    throwHttpErrors: false
+  });
+
+  const verifyBody = typeof verifyRes?.body === 'string'
+    ? JSON.parse(verifyRes.body)
+    : (verifyRes?.body || {});
+
+  const verificationToken = String(verifyBody?.token || '').trim();
+  if (!verifyBody?.success || !verificationToken) {
+    throw new Error(String(verifyBody?.message || verifyBody?.mess || 'SnapInsta token verification failed').replace(/<[^>]*>/g, '').trim() || 'SnapInsta token verification failed');
   }
+
+  const searchRes = await gotScraping.post(config.searchUrl, {
+    cookieJar,
+    headers: commonHeaders,
+    form: {
+      q: query,
+      t: 'media',
+      v: config.version,
+      lang: config.lang,
+      cftoken: verificationToken,
+      html: ''
+    },
+    responseType: 'json',
+    timeout: { request: TIMEOUT.EXTRA_LONG },
+    throwHttpErrors: false
+  });
+
+  if (searchRes?.statusCode && searchRes.statusCode >= 400) {
+    throw new Error(`SnapInsta HTTP ${searchRes.statusCode}`);
+  }
+
+  const parsed = typeof searchRes?.body === 'string'
+    ? JSON.parse(searchRes.body)
+    : (searchRes?.body || {});
 
   if (!parsed || typeof parsed !== 'object') {
-    throw new Error('Invalid savevid response');
+    throw new Error('Invalid SnapInsta response');
   }
 
   if (parsed.status !== 'ok') {
-    const msg = String(parsed.mess || parsed.message || 'API error').replace(/<[^>]*>/g, '').trim();
-    throw new Error(msg || 'Savevid API error');
+    const msg = String(parsed.mess || parsed.message || 'SnapInsta API error').replace(/<[^>]*>/g, '').trim();
+    throw new Error(msg || 'SnapInsta API error');
   }
 
   if (parsed.mess && !parsed.data) {
     const msg = String(parsed.mess).replace(/<[^>]*>/g, '').trim();
-    throw new Error(msg || 'Savevid API error');
+    throw new Error(msg || 'SnapInsta API error');
   }
 
   let html = String(parsed.data || parsed.html || '');
-  if (!html) throw new Error('No html data from savevid');
+  if (!html) throw new Error('No html data from SnapInsta');
   if (html.includes('eval(') || html.includes('_0x')) {
     html = decodeObfuscated(html) || html;
   }
@@ -712,7 +724,7 @@ async function instagram(input) {
           postId: undefined
         });
 
-  const [media, metadata] = await Promise.all([fetchFromSaveVid(query), baseMetadataPromise]);
+  const [media, metadata] = await Promise.all([fetchFromSnapInsta(query), baseMetadataPromise]);
 
   if (!Array.isArray(media) || media.length === 0) {
     throw new Error('No media found');
