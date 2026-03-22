@@ -26,32 +26,11 @@ const buildPreviewText = (result) => {
 
 const formatCaption = (result) => {
     const author = result?.author || {}
-    const stats = result?.stats || {}
-    const type = String(result?.type || 'media').toLowerCase()
     const authorLine = author?.username ? `@${author.username}` : (author?.fullName || '-')
-    const verified = author?.isVerified ? 'yes' : 'no'
-    const followers = author?.followersCount || '-'
-    const likes = stats?.likes || '-'
-    const comments = stats?.comments || '-'
     const preview = buildPreviewText(result)
-
-    if (type === 'story') {
-        return (
-            `\`\`\`✅ INSTAGRAM STORY\n\n` +
-            `• Author: ${authorLine}\n` +
-            `• Verified: ${verified}\n` +
-            `• Followers: ${followers}\`\`\``
-        )
-    }
-
     return (
-        `\`\`\`✅ INSTAGRAM ${result?.type.toUpperCase()}\n\n` +
-        `${preview ? `• Caption: ${preview}\n` : ''}` +
-        `• Author: ${authorLine}\n` +
-        `• Verified: ${verified}\n` +
-        `• Followers: ${followers}\n` +
-        `• Likes: ${likes}\n` +
-        `• Comments: ${comments}\`\`\``
+        `\`Author: ${authorLine}\`\n\n` +
+        `${preview || '-'}`
     )
 }
 
