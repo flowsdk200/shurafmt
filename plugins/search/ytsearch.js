@@ -89,7 +89,7 @@ export default {
     name: 'ytsearch',
     aliases: ['yts'],
     description: 'Cari video youtube',
-    execute: async ({ sock, msg, text, prefix, command, react, useLimit }) => {
+    execute: async ({ sock, msg, text, prefix, command, react, useLimit, sender }) => {
         cleanupSessions()
         const jid = msg.key.remoteJid
         const q = String(text || '').trim()
@@ -137,7 +137,7 @@ export default {
             if (messageId) {
                 sessions.set(messageId, {
                     chatJid: jid,
-                    sender: msg.key.participant || msg.key.remoteJid,
+                    sender: sender || msg.key.participant || msg.key.remoteJid,
                     results: results.map((item) => ({ url: item.url })),
                     expiresAt: Date.now() + (10 * 60 * 1000)
                 })
