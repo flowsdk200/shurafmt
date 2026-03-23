@@ -82,7 +82,6 @@ export default {
                     ptt: false
                 }, { quoted: msg })
 
-                await sock.sendMessage(jid, { text: caption }, { quoted: msg })
                 useLimit()
                 await react('✅')
                 return
