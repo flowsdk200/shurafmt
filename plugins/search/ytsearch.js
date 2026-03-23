@@ -120,7 +120,7 @@ export default {
             ))
 
             const firstThumb = results[0]?.thumbnail || results[0]?.thumbnailHD || ''
-            const caption = `\`\`\`${lines.join('\n\n')}\`\`\`\n\n\`Reply pesan ini dengan angka 1-${results.length} untuk download MP3.\``
+            const caption = `\`\`\`${lines.join('\n\n')}\`\`\`\n\n\n\`\`\`⚠️ Reply pesan ini dengan angka 1-${results.length} untuk download MP3.\`\`\``
 
             let sent
 
