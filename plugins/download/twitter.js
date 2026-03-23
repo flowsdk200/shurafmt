@@ -1,14 +1,6 @@
 import axios from 'axios'
 import { twitter, isTwitterUrl } from '../../scrape/twitter.js'
 
-const formatNumber = (num = 0) => {
-    const n = Number(num || 0)
-    if (!Number.isFinite(n)) return '0'
-    if (n >= 1000000) return `${(n / 1000000).toFixed(1).replace(/\.0$/, '')}M`
-    if (n >= 1000) return `${(n / 1000).toFixed(1).replace(/\.0$/, '')}K`
-    return `${Math.floor(n)}`
-}
-
 const fetchBuffer = async (url) => {
     const { data } = await axios.get(url, {
         responseType: 'arraybuffer',
@@ -23,21 +15,12 @@ const fetchBuffer = async (url) => {
 
 const buildCaption = (data = {}) => {
     const author = data.author || {}
-    const stats = data.stats || {}
-    const username = author.username ? `@${author.username}` : '-'
-    const name = author.name || '-'
-    const verified = author.verified ? 'yes' : 'no'
+    const name = String(author.name || '').trim()
+    const username = String(author.username || '').trim()
+    const text = String(data.text || '').replace(/(?:\s+https:\/\/t\.co\/\w+)+\s*$/i, '').trim()
+    const authorLine = name || (username ? `@${username}` : '-')
 
-    return (
-        `\`\`\`✅ TWITTER/X\n\n` +
-        `• Author: ${name}\n` +
-        `• Username: ${username}\n` +
-        `• Verified: ${verified}\n` +
-        `• Likes: ${formatNumber(stats.likes)}\n` +
-        `• Retweets: ${formatNumber(stats.retweets)}\n` +
-        `• Replies: ${formatNumber(stats.replies)}\n` +
-        `• Views: ${formatNumber(stats.views)}\`\`\``
-    )
+    return `\`Author: ${authorLine}\`\n\n${text || '-'}`
 }
 
 export default {
