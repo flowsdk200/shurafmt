@@ -1,18 +1,13 @@
 import axios from 'axios'
+import { load as loadHtml } from 'cheerio'
 
 const ENTRY_URL = 'https://spotidown.app/en1'
 const BASE_URL = 'https://spotidown.app'
 const ACTION_URL = `${BASE_URL}/action`
 const TRACK_ACTION_URL = `${BASE_URL}/action/track`
-const SPOTDOWN_BASE_URL = 'https://spotdown.org'
 const PAGE_HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36',
     'Accept-Language': 'en-US,en;q=0.9'
-}
-
-let spotdownSessionCache = {
-    token: '',
-    expires: 0
 }
 
 const extractTrackId = (url = '') => {
@@ -51,66 +46,35 @@ async function searchTracks(query, limit = 50) {
     const q = String(query || '').trim()
     if (!q) throw new Error('Query kosong')
 
-    const token = await getSpotdownSessionToken()
-    const res = await axios.get(`${SPOTDOWN_BASE_URL}/api/song-details`, {
-        params: { url: q },
-        timeout: 30000,
+    const session = await getSession()
+    const form = new FormData()
+    form.append('url', q)
+    form.append('g-recaptcha-response', '')
+    for (const field of session.hiddenFields) {
+        form.append(field.name, field.value)
+    }
+
+    const res = await fetch(ACTION_URL, {
+        method: 'POST',
         headers: {
-            'User-Agent': PAGE_HEADERS['User-Agent'],
-            'Accept': 'application/json,text/plain,*/*',
-            'X-Session-Token': token
-        }
+            ...PAGE_HEADERS,
+            Origin: BASE_URL,
+            Referer: ENTRY_URL,
+            Cookie: session.cookie
+        },
+        body: form
     })
 
-    if (res.data?.success === false) {
-        throw new Error(String(res.data?.message || 'Pencarian Spotify gagal'))
+    if (!res.ok) {
+        throw new Error(`SpotiDown search HTTP ${res.status}`)
     }
 
-    const items = Array.isArray(res.data?.songs) ? res.data.songs : []
-    const sliced = items.slice(0, Math.max(1, Math.min(50, Number(limit) || 50)))
-
-    return sliced.map((item) => {
-        const durationMs = parseDurationToMs(item.duration)
-        return {
-            id: extractTrackId(item.url),
-            title: item.title,
-            artists: item.artist,
-            album: item.album || '',
-            duration: durationMs,
-            durationFormatted: formatDuration(durationMs),
-            releaseDate: item.release_date || '',
-            popularity: undefined,
-            explicit: undefined,
-            preview: null,
-            image: item.thumbnail || null,
-            url: item.url,
-            uri: item.url
-        }
-    })
-}
-
-async function getSpotdownSessionToken() {
-    if (spotdownSessionCache.token && Date.now() < Number(spotdownSessionCache.expires || 0)) {
-        return spotdownSessionCache.token
+    const payload = await res.json()
+    if (payload?.error) {
+        throw new Error(String(payload.message || 'Pencarian Spotify gagal'))
     }
 
-    const res = await axios.get(`${SPOTDOWN_BASE_URL}/api/get-session-token`, {
-        timeout: 30000,
-        headers: {
-            'User-Agent': PAGE_HEADERS['User-Agent'],
-            'Accept': 'application/json,text/plain,*/*'
-        }
-    })
-
-    const token = String(res.data?.token || '').trim()
-    const expires = Number(res.data?.expires || 0)
-
-    if (!token) {
-        throw new Error('Token search Spotdown tidak ditemukan')
-    }
-
-    spotdownSessionCache = { token, expires }
-    return token
+    return parseSearchResults(payload.data, limit)
 }
 
 const decodeValue = (value = '') => String(value || '')
@@ -126,6 +90,46 @@ const decodeBase64Json = (value = '') => {
     } catch {
         return null
     }
+}
+
+const parseSearchResults = (html = '', limit = 50) => {
+    const $ = loadHtml(String(html || ''))
+    const max = Math.max(1, Math.min(50, Number(limit) || 50))
+    const results = []
+
+    $('form[name="submitspurl"]').each((_, form) => {
+        if (results.length >= max) return !1
+
+        const $form = $(form)
+        const dataValue = decodeValue($form.find('input[name="data"]').val() || '')
+        const parsed = decodeBase64Json(dataValue) || {}
+        const trackId = String(parsed.tid || '').trim()
+        const title = String(parsed.name || '').trim()
+        const artists = String(parsed.artist || '').trim()
+
+        if (!trackId || !title) return
+
+        const durationMs = parseDurationToMs(parsed.duration)
+        const url = `https://open.spotify.com/track/${trackId}`
+
+        results.push({
+            id: trackId,
+            title,
+            artists,
+            album: String(parsed.album || '').trim(),
+            duration: durationMs,
+            durationFormatted: durationMs ? formatDuration(durationMs) : '',
+            releaseDate: String(parsed.date || '').trim(),
+            popularity: undefined,
+            explicit: undefined,
+            preview: null,
+            image: String(parsed.cover || '').trim() || null,
+            url,
+            uri: url
+        })
+    })
+
+    return results
 }
 
 const extractInputFields = (html = '') => {
