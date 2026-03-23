@@ -3,7 +3,7 @@ import { enhanceHd } from '../../scrape/hd.js'
 
 export default {
     name: 'hd',
-    aliases: ['enhance', 'upscale', 'hdr'],
+    aliases: ['enhance', 'upscale'],
     description: 'Enhance kualitas gambar jadi HD',
     execute: async ({ sock, msg, text, isQuoted, quotedMsg, quotedType, react, useLimit, prefix, command }) => {
         const jid = msg.key.remoteJid
