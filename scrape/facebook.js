@@ -121,6 +121,8 @@ export const getVideo = async (url, options = {}) => {
         source: data.source || 'facebook',
         rawUrl: data.url || normalizedUrl,
         title: data.title || 'Facebook Video',
+        author: data.author || data.uploader || data.owner || '',
+        caption: data.caption || data.description || data.text || data.title || '',
         thumbnail: data.thumbnail || '',
         duration: data.duration || null,
         medias,

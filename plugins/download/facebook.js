@@ -1,35 +1,5 @@
 import { getVideo, isFacebookUrl } from '../../scrape/facebook.js'
 
-const fmtSize = (value) => {
-    const size = Number(value || 0)
-    if (!size || !Number.isFinite(size)) return ''
-    if (size >= 1024 * 1024 * 1024) return `${(size / (1024 * 1024 * 1024)).toFixed(2)} GB`
-    if (size >= 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(2)} MB`
-    if (size >= 1024) return `${(size / 1024).toFixed(2)} KB`
-    return `${size} B`
-}
-
-const formatDuration = (value) => {
-    const duration = Number(value || 0)
-    if (!duration || !Number.isFinite(duration) || duration <= 0) return ''
-
-    const m = Math.floor(duration / 60)
-    const s = String(duration % 60).padStart(2, '0')
-    return `${m}m ${s}s`
-}
-
-const buildCaption = (result) => {
-    const size = fmtSize(result.bestMedia?.size)
-    const length = formatDuration(result.duration)
-
-    return [
-        `\`\`\`• Title: ${result.title || '-'}`,
-        `• Duration: ${length || '-'}`,
-        `• Quality: ${result.bestMedia?.quality || '-'}`,
-        `• Size: ${size || '-'}\`\`\``
-    ].join('\n')
-}
-
 const findBestMedia = (result) => {
     const medias = Array.isArray(result?.medias) ? result.medias : []
     if (medias.length === 0) return null
@@ -73,13 +43,6 @@ export default {
                     text: '❌ Video tidak ditemukan dari link tersebut.'
                 }, { quoted: msg })
             }
-
-            const caption = buildCaption({
-                title: result.title,
-                duration: result.duration,
-                source: result.source,
-                bestMedia: media
-            })
 
             await sock.sendMessage(jid, {
                 video: { url: media.url },
