@@ -25,7 +25,13 @@ export default {
                         ? 'story'
                         : undefined
             })
-            const caption = `\`Author: ${String(result.author || '-').trim() || '-'}\`\n\n${String(result.caption || '-').trim() || '-'}`
+            const author = String(result.author || '-').trim() || '-'
+            const captionText = String(result.caption || '').trim()
+            const caption = captionText
+                ? `\`Author: ${author}\`
+
+${captionText}`
+                : `\`Author: ${author}\``
 
             if (result.type === 'photo') {
                 const mediaBuffers = await Promise.all(result.images.map(async (item) => {
