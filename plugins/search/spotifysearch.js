@@ -85,7 +85,7 @@ export default {
             ))
 
             const thumb = results[0]?.image || ''
-            const caption = `\`\`\`${lines.join('\n\n')}\`\`\`\n\nReply pesan ini dengan angka 1-${results.length} untuk download track. Session aktif 25 menit.`
+            const caption = `\`\`\`${lines.join('\n\n')}\`\`\`\n\n\`Reply pesan ini dengan angka 1-${results.length} untuk download MP3.\``
             let sent
 
             if (thumb) {
