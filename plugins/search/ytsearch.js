@@ -120,7 +120,7 @@ export default {
             ))
 
             const firstThumb = results[0]?.thumbnail || results[0]?.thumbnailHD || ''
-            const caption = `\`\`\`${lines.join('\n\n')}\`\`\`\n\nReply pesan ini dengan angka 1-${results.length} untuk download MP3.`
+            const caption = `\`\`\`${lines.join('\n\n')}\`\`\`\n\nReply pesan ini dengan angka 1-${results.length} untuk download MP3. Session aktif 25 menit.`
 
             let sent
 
@@ -137,9 +137,9 @@ export default {
             if (messageId) {
                 sessions.set(messageId, {
                     chatJid: jid,
-                    sender: sender || msg.key.participant || msg.key.remoteJid,
                     results: results.map((item) => ({ url: item.url })),
-                    expiresAt: Date.now() + (10 * 60 * 1000)
+                    processing: false,
+                    expiresAt: Date.now() + (25 * 60 * 1000)
                 })
             }
 
@@ -165,13 +165,19 @@ export default {
         const session = sessions.get(stanzaId)
         if (!session) return
         if (session.chatJid !== msg.key.remoteJid) return
-        if (session.sender !== sender) return
         if (choice < 1 || choice > session.results.length) return
+        if (session.processing) return
 
         const picked = session.results[choice - 1]
         if (!picked?.url) return
 
-        sessions.delete(stanzaId)
-        await sendAudioResult({ sock, msg, react, useLimit, url: picked.url })
+        session.processing = true
+
+        try {
+            await sendAudioResult({ sock, msg, react, useLimit, url: picked.url })
+        } finally {
+            const current = sessions.get(stanzaId)
+            if (current) current.processing = false
+        }
     }
 }
