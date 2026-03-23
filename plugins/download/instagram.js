@@ -13,24 +13,20 @@ const fetchBuffer = async (url) => {
     return Buffer.from(data)
 }
 
-const buildPreviewText = (result) => {
+const buildCaptionText = (result) => {
     const raw = String(result?.caption || result?.postTitle || result?.title || '').trim()
     if (!raw) return ''
 
-    return raw
-        .replace(/\s+/g, ' ')
-        .split('\n')[0]
-        .trim()
-        .slice(0, 80)
+    return raw.replace(/\r/g, '').trim()
 }
 
 const formatCaption = (result) => {
     const author = result?.author || {}
     const authorLine = author?.username ? `@${author.username}` : (author?.fullName || '-')
-    const preview = buildPreviewText(result)
+    const captionText = buildCaptionText(result)
     return (
         `\`Author: ${authorLine}\`\n\n` +
-        `${preview || '-'}`
+        `${captionText || '-'}`
     )
 }
 
