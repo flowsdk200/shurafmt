@@ -1,3 +1,4 @@
+/*
 import axios from 'axios'
 import { tiktok2, tiktok3, searchTikTok } from '../../scrape/tiktok.js'
 
@@ -169,7 +170,7 @@ export default {
             }
 
             return sock.sendMessage(jid, {
-                text: `Contoh penggunaan:\n- ${prefix + command} https://vt.tiktok.com/ZSu2kwRCQ/`
+                text: `Contoh penggunaan:\n- ${prefix + command} https://vt.tiktok.com/ZSunPCVct/`
             }, { quoted: msg })
         }
 
@@ -305,3 +306,4 @@ export default {
         }
     }
 }
+*/
