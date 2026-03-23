@@ -24,10 +24,11 @@ const formatCaption = (result) => {
     const author = result?.author || {}
     const authorLine = author?.username ? `@${author.username}` : (author?.fullName || '-')
     const captionText = buildCaptionText(result)
-    return (
-        `\`Author: ${authorLine}\`\n\n` +
-        `${captionText || '-'}`
-    )
+    return captionText
+        ? `\`Author: ${authorLine}\`
+
+${captionText}`
+        : `\`Author: ${authorLine}\``
 }
 
 export default {

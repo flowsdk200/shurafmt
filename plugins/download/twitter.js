@@ -20,7 +20,11 @@ const buildCaption = (data = {}) => {
     const text = String(data.text || '').replace(/(?:\s+https:\/\/t\.co\/\w+)+\s*$/i, '').trim()
     const authorLine = name || (username ? `@${username}` : '-')
 
-    return `\`Author: ${authorLine}\`\n\n${text || '-'}`
+    return text
+        ? `\`Author: ${authorLine}\`
+
+${text}`
+        : `\`Author: ${authorLine}\``
 }
 
 export default {
