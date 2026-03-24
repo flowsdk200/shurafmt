@@ -2,7 +2,7 @@ import { createRssCommand } from './_rssbase.js'
 
 export default createRssCommand({
     name: 'bbcworld',
-    aliases: ['bbcworld'],
+    aliases: ['bbc'],
     description: 'BBC World',
     feed: 'https://www.bbc.com/news/world/rss.xml',
 })
