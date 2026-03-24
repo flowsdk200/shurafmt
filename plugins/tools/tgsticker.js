@@ -1,16 +1,17 @@
 import axios from 'axios'
-import { makeSticker } from '../../src/utils/exif.js'
+import { generateWAMessageFromContent, proto } from 'baileys'
 
 const BOT_TOKEN = '7807412168:AAE1k2gN9nt3LqcePkXsvk9JJMqYjmORufI'
 const API = `https://api.telegram.org/bot${BOT_TOKEN}`
-const FILE_API = `https://api.telegram.org/file/bot${BOT_TOKEN}`
 
 const REQUEST_TIMEOUT = 30000
-const DOWNLOAD_TIMEOUT = 60000
-const SEND_DELAY_MS = 3000
 
 const cleanText = (value) => String(value || '').replace(/\s+/g, ' ').trim()
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+const buildStickerPackId = (value) => `telegram-${cleanText(value).replace(/[^a-zA-Z0-9_-]/g, '').toLowerCase() || 'pack'}`
+const detectStickerMime = (sticker) =>
+    sticker?.is_video ? 'video/webm'
+        : sticker?.is_animated ? 'application/x-tgsticker'
+            : 'image/webp'
 
 const extractPackName = (url) => {
     const raw = cleanText(url)
@@ -32,42 +33,48 @@ const getStickerSet = async (name) => {
     return res.data.result || {}
 }
 
-const getFileUrl = async (fileId) => {
-    const res = await axios.get(`${API}/getFile`, {
-        params: { file_id: fileId },
-        timeout: REQUEST_TIMEOUT,
-        validateStatus: () => true
-    })
+const sendStickerPack = async ({ sock, jid, msg, botJid, packName, packLabel, set, stickers }) => {
+    const uniqueStickers = []
+    const seen = new Set()
 
-    if (!res.data?.ok || !res.data?.result?.file_path) {
-        throw new Error(cleanText(res.data?.description) || `Telegram HTTP ${res.status}`)
+    for (const sticker of stickers) {
+        const uniqueKey = cleanText(sticker?.file_unique_id || sticker?.file_id)
+        if (!uniqueKey || seen.has(uniqueKey)) continue
+        seen.add(uniqueKey)
+
+        uniqueStickers.push({
+            fileName: `sticker_${uniqueStickers.length + 1}.${sticker?.is_video ? 'webm' : sticker?.is_animated ? 'tgs' : 'webp'}`,
+            isAnimated: Boolean(sticker?.is_animated || sticker?.is_video),
+            emojis: cleanText(sticker?.emoji) ? [cleanText(sticker.emoji)] : [],
+            mimetype: detectStickerMime(sticker)
+        })
     }
 
-    return `${FILE_API}/${res.data.result.file_path}`
-}
-
-const downloadSticker = async (fileId) => {
-    const fileUrl = await getFileUrl(fileId)
-    const res = await axios.get(fileUrl, {
-        responseType: 'arraybuffer',
-        timeout: DOWNLOAD_TIMEOUT,
-        validateStatus: () => true
+    const stickerPackMessage = proto.Message.StickerPackMessage.fromObject({
+        stickerPackId: buildStickerPackId(set?.name || packName),
+        name: packLabel,
+        publisher: 'Telegram',
+        stickers: uniqueStickers,
+        caption: `${uniqueStickers.length} stiker`,
+        packDescription: cleanText(set?.sticker_type || 'regular'),
+        stickerPackSize: uniqueStickers.length,
+        stickerPackOrigin: 'THIRD_PARTY'
     })
 
-    if (res.status !== 200) {
-        throw new Error(`Download HTTP ${res.status}`)
-    }
+    const waMsg = generateWAMessageFromContent(
+        jid,
+        { stickerPackMessage },
+        { userJid: botJid || sock?.user?.id, quoted: msg }
+    )
 
-    const buffer = Buffer.from(res.data || [])
-    if (!buffer.length) throw new Error('File kosong')
-    return buffer
+    await sock.relayMessage(jid, waMsg.message, { messageId: waMsg.key.id })
 }
 
 export default {
     name: 'tgsticker',
     aliases: ['tgs', 'stickerpack', 'telesticker'],
-    description: 'Ambil sticker pack Telegram dan kirim semua jadi sticker',
-    execute: async ({ sock, msg, text, prefix, command, react, useLimit }) => {
+    description: 'Lihat metadata sticker pack Telegram sebagai pack',
+    execute: async ({ sock, msg, text, prefix, command, react, useLimit, botJid }) => {
         const jid = msg.key.remoteJid
         const input = cleanText(text)
 
@@ -97,58 +104,19 @@ export default {
                 throw new Error('Sticker pack kosong atau tidak ditemukan')
             }
 
-            const sentSet = new Set()
             const packLabel = cleanText(set?.title || set?.name || packName)
-
-            let sent = 0
-            let failed = 0
-            let duplicate = 0
-
-            for (const st of stickers) {
-                const uniqueKey = cleanText(st?.file_unique_id || st?.file_id)
-                if (!uniqueKey) continue
-
-                if (sentSet.has(uniqueKey)) {
-                    duplicate += 1
-                    continue
-                }
-                sentSet.add(uniqueKey)
-
-                const fileId = cleanText(st?.file_id)
-                if (!fileId) {
-                    failed += 1
-                    await sleep(SEND_DELAY_MS)
-                    continue
-                }
-
-                try {
-                    const buffer = await downloadSticker(fileId)
-                    await makeSticker(sock, jid, buffer, {
-                        packname: packLabel,
-                        quoted: msg
-                    })
-                    sent += 1
-                } catch {
-                    failed += 1
-                }
-
-                await sleep(SEND_DELAY_MS)
-            }
-
-            if (sent > 0) useLimit()
-            await react(sent > 0 ? '✅' : '❌')
-
-            await sock.sendMessage(jid, {
-                text:
-                    '```✅ TELEGRAM STICKER DONE\n\n' +
-                    `• Pack: ${packLabel}\n` +
-                    `• Name: ${cleanText(set?.name || packName)}\n` +
-                    `• Type: ${cleanText(set?.sticker_type || '-')}\n` +
-                    `• Total: ${stickers.length}\n` +
-                    `• Sent: ${sent}\n` +
-                    `• Failed: ${failed}` +
-                    '```'
-            }, { quoted: msg })
+            await sendStickerPack({
+                sock,
+                jid,
+                msg,
+                botJid,
+                packName,
+                packLabel,
+                set,
+                stickers
+            })
+            useLimit()
+            await react('✅')
         } catch (err) {
             await react('❌')
             await sock.sendMessage(jid, {
