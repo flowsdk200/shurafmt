@@ -40,7 +40,7 @@ export default {
 
         if (!q) {
             return sock.sendMessage(jid, {
-                text: `Contoh penggunaan:\n- ${prefix + command} https://www.threads.com/@username/post/ABC123`
+                text: `Contoh penggunaan:\n- ${prefix + command} https://www.threads.com/@zlfnap/post/DWPxxY6kxYG`
             }, { quoted: msg })
         }
 
@@ -58,7 +58,7 @@ export default {
             if (!media.length) {
                 await react('❌')
                 return sock.sendMessage(jid, {
-                    text: '❌ Media tidak ditemukan pada post Threads tersebut.'
+                    text: '❌ Media tidak ditemukan pada post threads tersebut.'
                 }, { quoted: msg })
             }
 
@@ -75,7 +75,7 @@ export default {
                     } catch {}
                 }
 
-                if (!buffers.length) throw new Error('❌ Semua gambar Threads gagal diambil')
+                if (!buffers.length) throw new Error('❌ Semua gambar threads gagal diambil')
 
                 const albumMessage = buffers.map((buffer, index) => ({
                     image: buffer,
@@ -96,7 +96,7 @@ export default {
                     } catch {}
                 }
 
-                if (!buffers.length) throw new Error('❌ Semua video Threads gagal diambil')
+                if (!buffers.length) throw new Error('❌ Semua video threads gagal diambil')
 
                 const albumMessage = buffers.map((buffer, index) => ({
                     video: buffer,
@@ -133,7 +133,7 @@ export default {
                 sent = true
             }
 
-            if (!sent) throw new Error('❌ Tidak ada media Threads yang berhasil dikirim')
+            if (!sent) throw new Error('❌ Tidak ada media threads yang berhasil dikirim')
 
             useLimit()
             await react('✅')

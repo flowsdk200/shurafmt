@@ -42,7 +42,7 @@ export default {
         if (!q) {
             return sock.sendMessage(jid, {
                 text:
-                    `Mana linknya?`
+                    `Contoh penggunaan:\n- ${prefix + command} https://www.instagram.com/reel/DVtHmU7Dnmt`
             }, { quoted: msg })
         }
 
