@@ -6,7 +6,7 @@ const { Jimp } = require('jimp')
 
 export const MENU = {
     General: ['ai', 'confess', 'glm', 'gemini', 'ping', 'script', 'owner', 'kbbi'],
-    Download: ['aptoidedl', 'apptekadl', 'bilibilidl', 'capcutdl', 'donghuadl', 'facebook', 'fdroiddl', 'gdrive', 'gitclone', 'igreel', 'igpost', 'igstory', 'instagram', 'mediafire', 'pindl', 'play', 'redditdl', 'sfiledl', 'softmanydl', 'spotify', 'tiktok', 'tumblr', 'twitter', 'videy', 'ytmp3', 'ytmp4'],
+    Download: ['aptoidedl', 'apptekadl', 'bilibilidl', 'capcutdl', 'donghuadl', 'facebook', 'fdroiddl', 'gdrive', 'gitclone', 'igreel', 'igpost', 'igstory', 'instagram', 'mediafire', 'pindl', 'play', 'redditdl', 'sfiledl', 'softmanydl', 'spotify', 'threads', 'tiktok', 'tumblr', 'twitter', 'videy', 'ytmp3', 'ytmp4'],
     Search: ['apkcombo', 'apkmirror', 'apkmody', 'apkpure', 'appstore', 'appteka', 'aptoide', 'bilibili', 'bing', 'bingimg', 'bluearchive', 'brave', 'cekfakta', 'cookpad', 'cookpadread', 'donghua', 'fdroid', 'github', 'google', 'gsmarena', 'komikindo', 'linkedin', 'mangatoon', 'mangatoonread', 'npm', 'pin', 'pixiv', 'playstore', 'sfile', 'shopee', 'softmany', 'soundcloud', 'spsearch', 'tokopedia', 'ttsearch', 'turnbackhoax', 'unsplash', 'wattpad', 'wattpadread', 'webtoons', 'webtoonread', 'wikimedia', 'wikipedia', 'yahoo', 'ytsearch'],
     Tools: ['brat', 'cekcuaca', 'emojimix', 'gempa', 'get', 'getpp', 'hd', 'hdvideo', 'idch', 'iqc', 'jadwalsholat', 'ocr', 'removebg', 'rvo', 'shorturl', 'smeme', 'sprl', 'ssweb', 'sticker', 'swm', 'tgsticker', 'tinycc', 'totalfitur', 'tourl', 'translate', 'videyup'],
     Group: ['add', 'addwarn', 'afk', 'antibot', 'antihidetag', 'antilinkch', 'antilinkgc', 'antiluar', 'antispam', 'close', 'delete', 'delppgc', 'delwarn', 'demote', 'goodbye', 'hidetag', 'kick', 'listwarn', 'open', 'promote', 'setclose', 'setgoodbye', 'setopen', 'setppgc', 'setwelcome', 'tagall', 'welcome'],
@@ -67,7 +67,7 @@ const getUptime = (uptimeSeconds) => {
 
 export default {
     name: 'menu',
-    aliases: ['help', 'm'],
+    aliases: ['help', 'allmenu'],
     description: 'Tampilkan daftar semua perintah bot',
     execute: async ({ sock, msg, botJid, config, usersDb, pushName, sender, isOwner, isPremium, react }) => {
         try {
