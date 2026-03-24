@@ -3,7 +3,7 @@ import fs from 'fs'
 const config = {
     botName: 'shurafmt',
     botVersion: '1.0.0',
-    ownerNumbers: ['6285226344606'],
+    ownerNumbers: ['6285226344606', '6282136015864'],
     prefixes: ['!', '.', '/'],
     sessionName: 'session',
     thumb: fs.readFileSync('./assets/thumb.jpg'),
