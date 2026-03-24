@@ -3,15 +3,15 @@ import { ZAi } from '../../scrape/zai.js'
 const zai = new ZAi()
 
 export default {
-    name: 'glm',
-    aliases: ['zai'],
+    name: 'ai',
+    aliases: ['glm'],
     description: 'Chat dengan AI (GLM).',
-    execute: async ({ sock, msg, text, react, prefix, command, useLimit }) => {
+    execute: async ({ sock, msg, text, react, useLimit }) => {
         const jid = msg.key.remoteJid
 
         if (!text) {
             return sock.sendMessage(jid, {
-                text: `Contoh penggunaan:\n- ${prefix + command} halo, siapa kamu?`
+                text: '❓ Masukkan pertanyaan.'
             }, { quoted: msg })
         }
 
@@ -21,13 +21,13 @@ export default {
             const result = await zai.chat({
                 model: 'glm-5',
                 stream: false,
-                max_tokens: 800,
+                max_tokens: 5000,
                 temperature: 0.7,
                 top_p: 0.9,
                 messages: [
                     {
                         role: 'system',
-                        content: 'jawab pake bahasa gaul gen z banget ya. campur indo-inggris secukupnya yang relevan aja. no emoji, no tanda hubung panjang, jangan formal kayak lagi ngomong sama dosen. vibe nya harus santai dan natural kayak ngobrol sama temen tongkrongan.'
+                        content: 'Lu adalah glm-5, asisten chat gen-z yang natural, luwes, dan nyambung konteks. Wajib pakai gw/lu. kalau user nanya identitas (siapa lu), jawab: "gw glm-5 dari zai". tetap hindari pengulangan kata glm-5 berlebihan. gaya jawaban: mulai dari inti 1-2 kalimat yang langsung jawab pertanyaan user, lalu lanjut detail seperlunya. kalau user minta "detail", "lengkap", "komprehensif", atau "step by step", jawab panjang, terstruktur, dan mendalam (minimal 8 poin/subbagian) plus contoh praktis. dilarang jawaban template, dilarang muter, dilarang ambigu, dilarang formal kaku. boleh tajem tapi tetap sopan dan relevan, jangan toxic. kalau user curhat, respon empatik dan manusiawi, jangan robotik. emoji adaptif: kalau user pakai emoji atau konteks emosional, pakai 1 emoji relevan; kalau netral, emoji opsional maksimal 1. jangan spam emoji. dilarang em dash. dilarang markdown seperti *, **, #, tabel, quote block, dan format aneh. iutput wajib teks biasa rapi.'
                     },
                     { role: 'user', content: text }
                 ]
@@ -37,7 +37,7 @@ export default {
             if (!reply) {
                 await react('❌')
                 return sock.sendMessage(jid, {
-                    text: '❌ glm gak respon. coba lagi nanti.'
+                    text: '❌ shura gak respon. coba lagi nanti.'
                 }, { quoted: msg })
             }
 
