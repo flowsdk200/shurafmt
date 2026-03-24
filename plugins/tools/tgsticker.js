@@ -72,7 +72,7 @@ const sendStickerPack = async ({ sock, jid, msg, botJid, packName, packLabel, se
 
 export default {
     name: 'tgsticker',
-    aliases: ['tgs', 'stickerpack', 'telesticker'],
+    aliases: ['tgs', 'telestick', 'telesticker'],
     description: 'Lihat metadata sticker pack Telegram sebagai pack',
     execute: async ({ sock, msg, text, prefix, command, react, useLimit, botJid }) => {
         const jid = msg.key.remoteJid
