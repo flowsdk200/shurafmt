@@ -16,8 +16,7 @@ const REQUEST_TIMEOUT = 30000
 const DOWNLOAD_TIMEOUT = 60000
 
 const cleanText = (value) => String(value || '').replace(/\s+/g, ' ').trim()
-const buildPackSlug = (value) => cleanText(value).replace(/[^a-zA-Z0-9_]/g, '').toLowerCase() || 'telegrampack'
-const buildPackLink = (value) => `https://wa.me/stickerpack/${buildPackSlug(value)}`
+const buildPackLink = (value) => `https://t.me/addstickers/${cleanText(value).replace(/[^a-zA-Z0-9_]/g, '')}`
 const tryUnlink = (filePath) => {
     try { fs.unlinkSync(filePath) } catch {}
 }
@@ -113,7 +112,7 @@ const pickThumbnailFileId = (set, stickers) =>
         stickers.find((item) => !item?.is_animated && !item?.is_video && cleanText(item?.file_id))?.file_id
     )
 
-const sendStickerPackPreview = async ({ sock, jid, msg, botJid, packName, packLabel, stickers, set }) => {
+const sendStickerPackPreview = async ({ sock, jid, msg, botJid, packName, set, stickers }) => {
     let jpegThumbnail = null
     const thumbFileId = pickThumbnailFileId(set, stickers)
 
@@ -124,11 +123,12 @@ const sendStickerPackPreview = async ({ sock, jid, msg, botJid, packName, packLa
     }
 
     const link = buildPackLink(set?.name || packName)
+    const packLabel = cleanText(set?.title || set?.name || packName)
     const extendedTextMessage = proto.Message.ExtendedTextMessage.fromObject({
         text: link,
         matchedText: link,
         description: cleanText(set?.title || `${stickers.length} stiker Telegram`) || `${stickers.length} stiker Telegram`,
-        title: `Paket Stiker ${packLabel} di WhatsApp`,
+        title: `Paket Stiker ${packLabel} di Telegram`,
         previewType: 'NONE',
         jpegThumbnail: jpegThumbnail || undefined,
         inviteLinkGroupTypeV2: 'DEFAULT'
@@ -146,7 +146,7 @@ const sendStickerPackPreview = async ({ sock, jid, msg, botJid, packName, packLa
 export default {
     name: 'tgsticker',
     aliases: ['tgs', 'stickerpack', 'telesticker'],
-    description: 'Lihat preview sticker pack Telegram sebagai pack',
+    description: 'Lihat preview sticker pack Telegram sebagai extended preview',
     execute: async ({ sock, msg, text, prefix, command, react, useLimit, botJid }) => {
         const jid = msg.key.remoteJid
         const input = cleanText(text)
@@ -177,17 +177,16 @@ export default {
                 throw new Error('Sticker pack kosong atau tidak ditemukan')
             }
 
-            const packLabel = cleanText(set?.title || set?.name || packName)
             await sendStickerPackPreview({
                 sock,
                 jid,
                 msg,
                 botJid,
                 packName,
-                packLabel,
-                stickers,
-                set
+                set,
+                stickers
             })
+
             useLimit()
             await react('✅')
         } catch (err) {
