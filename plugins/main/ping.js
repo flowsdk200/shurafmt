@@ -228,7 +228,6 @@ export default {
         let text = ''
         text += `• Uptime: ${getUptime(os.uptime())}\n`
         text += `• Latency: ${msgLatencyMs} ms\n`
-        text += `• IP: ${maskIp(geo.ip)}\n`
         text += `• Region: ${geo.region}\n`
         text += `• ISP: ${geo.org}\n`
         text += `• Platform: ${os.platform()}\n`

@@ -37,13 +37,13 @@ const formatViewsEnglish = (value) => {
 
     const fmt = (num, suffix) => {
         const out = num >= 100 ? Math.round(num) : Number(num.toFixed(1))
-        return `${String(out).replace(/\.0$/, '')}${suffix} views`
+        return `${String(out).replace(/\.0$/, '')}${suffix}`
     }
 
     if (n >= 1_000_000_000) return fmt(n / 1_000_000_000, 'B')
     if (n >= 1_000_000) return fmt(n / 1_000_000, 'M')
     if (n >= 1_000) return fmt(n / 1_000, 'K')
-    return `${n} views`
+    return `${n}`
 }
 
 const formatUploadDate = (value) => {
@@ -125,11 +125,10 @@ export default {
                 video,
                 mimetype: 'video/mp4',
                 caption:
-                    `\`\`\`× Title: ${title}\n` +
-                    `× Channel: ${channelName}\n` +
-                    `× Duration: ${durasi}\n` +
-                    `× Views: ${viewsLabel}\n` +
-                    `× Upload: ${uploadLabel}\`\`\``
+                    `\`\`\`• Title: ${title}\n` +
+                    `• Channel: ${channelName}\n` +
+                    `• Duration: ${durasi}\n` +
+                    `• Views: ${viewsLabel}\`\`\``
             }, { quoted: msg })
 
             useLimit()
