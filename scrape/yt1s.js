@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { createHash } from 'crypto'
 
 const OEMBED_URL = 'https://www.youtube.com/oembed'
 const TIMEOUT = 60000
@@ -6,6 +7,7 @@ const YT_TIMEOUT = 15000
 const YT1S_ORIGIN = 'https://embed.dlsrv.online'
 const YT1S_REFERER = 'https://embed.dlsrv.online/'
 const YT1S_API = 'https://embed.dlsrv.online/api'
+const YT1S_SIGNATURE_SECRET = 'bq7b3BBxmjR4YdrJFDFPGkDvYPeeDdHWZ+Bq8lYImeRY'
 
 const client = axios.create({
   timeout: TIMEOUT,
@@ -36,12 +38,25 @@ function pickQuality(available, requested, defaults) {
   return available[0] || ''
 }
 
+function buildApiHeaders() {
+  const timestamp = Date.now().toString()
+  const signature = createHash('sha256')
+    .update(`${timestamp}${YT1S_SIGNATURE_SECRET}`)
+    .digest('hex')
+
+  return {
+    'Content-Type': 'application/json',
+    'x-app-timestamp': timestamp,
+    'x-app-signature': signature
+  }
+}
+
 async function getInfo(videoId, format) {
   try {
     const { data } = await client.post(
       `${YT1S_API}/info`,
       { videoId },
-      { headers: { 'Content-Type': 'application/json' } }
+      { headers: buildApiHeaders() }
     );
     if (!data || data.status !== 'info' || !data.info) {
       throw new Error(data?.error || 'Gagal mengambil data')
@@ -63,7 +78,7 @@ async function getDownload(videoId, format, quality) {
       format,
       quality
     }, {
-      headers: { 'Content-Type': 'application/json' }
+      headers: buildApiHeaders()
     });
     if (!data || data.status !== 'tunnel' || !data.url) {
       throw new Error(data?.error || 'Gagal mendapatkan link download')
