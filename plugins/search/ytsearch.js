@@ -139,7 +139,7 @@ export default {
                     chatJid: jid,
                     results: results.map((item) => ({ url: item.url })),
                     processing: false,
-                    expiresAt: Date.now() + (25 * 60 * 1000)
+                    expiresAt: Date.now() + (24 * 60 * 60 * 1000)
                 })
             }
 
