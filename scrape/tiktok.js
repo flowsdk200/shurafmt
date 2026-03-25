@@ -1,302 +1,20 @@
 import axios from 'axios'
-import { CookieJar } from 'tough-cookie'
-import { wrapper } from 'axios-cookiejar-support'
 import { load } from 'cheerio'
+import FormData from 'form-data'
 import vm from 'vm'
 
-const SEARCH_TIMEOUT = 30000
-const SEARCH_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36'
+const decodeWrappedUrl = (value) => {
+    const input = String(value || '').trim()
+    if (!input) return ''
 
-class MusicalDown {
-    constructor() {
-        const jar = new CookieJar()
-        this.client = wrapper(axios.create({
-            jar,
-            timeout: 30000,
-            headers: {
-                'user-agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36',
-                'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-                'accept-language': 'id-ID,id;q=0.9',
-                'upgrade-insecure-requests': '1'
-            }
-        }))
-    }
-
-    async #getHtml(url, options = {}) {
-        try {
-            const response = await this.client.get(url, {
-                validateStatus: () => true,
-                ...options
-            })
-            return response.data
-        } catch (error) {
-            throw new Error(`Failed to fetch ${url}: ${error.message}`)
-        }
-    }
-
-    async #postHtml(url, data, headers = {}) {
-        try {
-            const response = await this.client.post(url, data, {
-                headers: {
-                    'content-type': 'application/x-www-form-urlencoded',
-                    ...headers
-                },
-                validateStatus: () => true
-            })
-            return response.data
-        } catch (error) {
-            throw new Error(`Failed to post to ${url}: ${error.message}`)
-        }
-    }
-
-    async download(tiktokUrl) {
-        const homeHtml = await this.#getHtml('https://musicaldown.com/id')
-
-        const $home = load(homeHtml)
-        const form = $home('#submit-form')
-        if (!form.length) throw new Error('Form not found')
-
-        const body = new URLSearchParams()
-        let urlFieldName = null
-
-        form.find('input').each((_, el) => {
-            const name = $home(el).attr('name')
-            const type = $home(el).attr('type') ?? 'text'
-            const value = $home(el).attr('value') ?? ''
-            if (!name) return
-
-            if (type === 'text') {
-                urlFieldName = name
-                body.set(name, tiktokUrl)
-            } else {
-                body.set(name, value)
-            }
-        })
-
-        if (!urlFieldName) throw new Error('URL input field not found')
-
-        const resultHtml = await this.#postHtml('https://musicaldown.com/id/download', body.toString(), {
-            origin: 'https://musicaldown.com',
-            referer: 'https://musicaldown.com/id'
-        })
-
-        const $ = load(resultHtml)
-
-        if ($('#SlideButton').length) {
-            const mp3Url = $('a.download[data-event="mp3_download_click"]').attr('href') ?? null
-
-            let sliderData = null
-            $('script').each((_, el) => {
-                const m = ($(el).html() ?? '').match(/data:\s*["']([A-Za-z0-9+/=]+)["']/)
-                if (m && !sliderData) {
-                    try {
-                        sliderData = JSON.parse(Buffer.from(m[1], 'base64').toString())
-                    } catch {}
-                }
-            })
-
-            const photos = []
-            $('.card').each((_, card) => {
-                const thumbnail = $(card).find('.card-image img').attr('src') ?? null
-                const downloadUrl = $(card).find('.card-action a[href]').attr('href') ?? null
-                if (thumbnail && downloadUrl) photos.push({ thumbnail, downloadUrl })
-            })
-
-            return { type: 'slideshow', mp3Url, sliderData, photos }
-        }
-
-        const author = $('.video-author b').first().text().trim() || $('.video-author').first().text().trim() || null
-        const description = $('.video-desc').first().text().trim() || null
-        const thumbnail = $('.bg-overlay').first().attr('style')?.match(/url\(([^)]+)\)/)?.[1] ?? null
-        const avatar = $('.img-area img').first().attr('src') ?? null
-
-        const links = []
-        $('a.download[href], a[data-event][href]').each((_, el) => {
-            const href = $(el).attr('href')
-            const event = $(el).attr('data-event') ?? ''
-            const label = $(el).text().replace(/\s+/g, ' ').trim()
-            if (!href?.startsWith('http') || href.includes('/id')) return
-            const src = (event + label).toLowerCase()
-            const type = src.includes('mp3')
-                ? 'mp3'
-                : src.includes('hd')
-                    ? 'mp4_hd'
-                    : src.includes('watermark')
-                        ? 'mp4_watermark'
-                        : 'mp4'
-            links.push({ label, url: href, type })
-        })
-
-        return { type: 'video', author, description, thumbnail, avatar, links }
-    }
-}
-
-const searchApi = axios.create({
-    timeout: SEARCH_TIMEOUT,
-    headers: { 'User-Agent': SEARCH_USER_AGENT }
-})
-
-const TIKWM_TIMEOUT = 60000
-const TIKWM_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-
-const tikwmApi = axios.create({
-    timeout: TIKWM_TIMEOUT,
-    headers: { 'User-Agent': TIKWM_USER_AGENT }
-})
-
-const SNAPTIK_BASE = 'https://snaptik.app/ID2'
-const SNAPTIK_POST_URL = 'https://snaptik.app/abc2.php'
-const SNAPTIK_TIMEOUT = 60000
-const SNAPTIK_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36'
-const TIKTOK_PAGE_USER_AGENT = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Mobile Safari/537.36'
-
-const decodeJsEscapes = (value) => String(value || '')
-    .replace(/\\"/g, '"')
-    .replace(/\\\//g, '/')
-    .replace(/\\\\/g, '\\')
-
-const parseSnapTikHtmlBlock = (decodedScript) => {
-    const m = String(decodedScript || '').match(/\$\("#download"\)\.innerHTML\s*=\s*"([\s\S]*?)";/)
-    if (!m?.[1]) return ''
-    return decodeJsEscapes(m[1])
-}
-
-const extractSnapTikDirectUrl = (decodedScript) => {
-    const m = String(decodedScript || '').match(/href=\\"(https:[^"]+?)\\" class=\\"button download-file/i)
-    return decodeJsEscapes(m?.[1] || '')
-}
-
-const extractSnapTikHdTokenUrl = (decodedScript) => {
-    const m = String(decodedScript || '').match(/data-tokenhd=\\"(https:[^"]+?)\\" data-backup=/i)
-    return decodeJsEscapes(m?.[1] || '')
-}
-
-const extractSnapTikThumbnailApi = (decodedScript) => {
-    const m = String(decodedScript || '').match(/getThumbnail\('([^']+)'\)/i)
-    return decodeJsEscapes(m?.[1] || '')
-}
-
-const decodeJwtPayload = (token) => {
-    const raw = String(token || '').trim()
-    if (!raw) return null
-    const parts = raw.split('.')
-    if (parts.length < 2) return null
     try {
-        const base64 = parts[1]
-            .replace(/-/g, '+')
-            .replace(/_/g, '/')
-            .padEnd(Math.ceil(parts[1].length / 4) * 4, '=')
-        return JSON.parse(Buffer.from(base64, 'base64').toString('utf8'))
+        const parsed = new URL(input)
+        const encoded = parsed.searchParams.get('u')
+        if (!encoded) return input
+        return Buffer.from(encoded, 'base64').toString('utf8').trim() || input
     } catch {
-        return null
+        return input
     }
-}
-
-const decodeSnapTikScript = (rawScript) => {
-    let decoded = ''
-    const sandbox = {
-        eval: (code) => {
-            decoded = String(code || '')
-            return code
-        },
-        console,
-        decodeURIComponent,
-        escape
-    }
-    vm.createContext(sandbox)
-    vm.runInContext(String(rawScript || ''), sandbox, { timeout: 10000 })
-    return decoded
-}
-
-const extractTikTokJsonScript = (html, id) => {
-    const safeId = String(id || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    const m = String(html || '').match(new RegExp(`<script id="${safeId}" type="application/json">([\\s\\S]*?)<\\/script>`))
-    if (!m?.[1]) return null
-    try {
-        return JSON.parse(m[1])
-    } catch {
-        return null
-    }
-}
-
-const extractTikTokItemStruct = (html) => {
-    const apiData = extractTikTokJsonScript(html, 'api-data')
-    const apiItem = apiData?.videoDetail?.itemInfo?.itemStruct
-    if (apiItem && typeof apiItem === 'object') {
-        return apiItem
-    }
-
-    const universal = extractTikTokJsonScript(html, '__UNIVERSAL_DATA_FOR_REHYDRATION__')
-    const universalItem = universal?.__DEFAULT_SCOPE__?.['webapp.video-detail']?.itemInfo?.itemStruct
-    if (universalItem && typeof universalItem === 'object') {
-        return universalItem
-    }
-
-    return null
-}
-
-const normalizeTikTokMetadata = (item) => {
-    if (!item || typeof item !== 'object') return null
-
-    const images = Array.isArray(item.imagePost?.images)
-        ? item.imagePost.images.map((entry, index) => ({
-            url: String(entry?.imageURL?.urlList?.[0] || '').trim(),
-            thumbnail: String(entry?.imageURL?.urlList?.[0] || '').trim(),
-            index: index + 1
-        })).filter((entry) => entry.url)
-        : []
-
-    return {
-        id: String(item.id || '').trim(),
-        description: String(item.desc || '').trim(),
-        createTime: item.createTime || '',
-        video: {
-            duration: Number(item.video?.duration || 0),
-            width: Number(item.video?.width || 0),
-            height: Number(item.video?.height || 0),
-            cover: String(item.video?.cover || item.video?.originCover || item.imagePost?.cover?.imageURL?.urlList?.[0] || '').trim()
-        },
-        music: {
-            id: String(item.music?.id || '').trim(),
-            title: String(item.music?.title || '').trim(),
-            author: String(item.music?.authorName || '').trim(),
-            duration: Number(item.music?.duration || 0),
-            cover: String(item.music?.coverLarge || item.music?.coverMedium || item.music?.coverThumb || '').trim(),
-            url: String(item.music?.playUrl || '').trim()
-        },
-        author: {
-            id: String(item.author?.id || '').trim(),
-            username: String(item.author?.uniqueId || '').trim(),
-            nickname: String(item.author?.nickname || '').trim(),
-            avatar: String(item.author?.avatarLarger || item.author?.avatarMedium || item.author?.avatarThumb || '').trim()
-        },
-        stats: {
-            likes: item.stats?.diggCount,
-            comments: item.stats?.commentCount,
-            shares: item.stats?.shareCount,
-            plays: item.stats?.playCount,
-            saves: item.stats?.collectCount
-        },
-        images
-    }
-}
-
-async function fetchTikTokMetadata(url) {
-    const response = await axios.get(url, {
-        timeout: SNAPTIK_TIMEOUT,
-        validateStatus: () => true,
-        headers: {
-            'User-Agent': TIKTOK_PAGE_USER_AGENT,
-            'Accept-Language': 'id-ID,id;q=0.9,en;q=0.8',
-            'Referer': 'https://www.tiktok.com/'
-        }
-    })
-
-    if (response.status !== 200) {
-        return null
-    }
-
-    return normalizeTikTokMetadata(extractTikTokItemStruct(String(response.data || '')))
 }
 
 async function resolveTikTokUrl(url) {
@@ -306,358 +24,176 @@ async function resolveTikTokUrl(url) {
     try {
         const parsed = new URL(input)
         if (!/(^|\.)(vm|vt)\.tiktok\.com$/i.test(parsed.hostname)) {
-            if (/(^|\.)(www\.|m\.)?tiktok\.com$/i.test(parsed.hostname)) {
-                const cleanMatch = parsed.pathname.match(/^\/@[^/]+\/(video|photo)\/\d+/i)
-                if (cleanMatch?.[0]) {
-                    return `${parsed.origin}${cleanMatch[0]}`
-                }
-            }
-            return input
+            const cleanMatch = parsed.pathname.match(/^\/@[^/]+\/(video|photo)\/\d+/i)
+            return cleanMatch?.[0] ? `${parsed.origin}${cleanMatch[0]}` : input
         }
     } catch {
         return input
     }
 
-    const response = await tikwmApi.get(input, {
+    const response = await axios.get(input, {
+        timeout: 60000,
         maxRedirects: 10,
         validateStatus: () => true,
         headers: {
-            'User-Agent': TIKWM_USER_AGENT,
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Referer': 'https://www.tiktok.com/'
         }
     })
 
     const finalUrl = String(response.request?.res?.responseUrl || response.config?.url || input).trim()
     const match = finalUrl.match(/^https?:\/\/(www\.|m\.)?tiktok\.com\/@[^/]+\/(video|photo)\/\d+/i)
-    if (match?.[0]) return match[0]
-    return finalUrl || input
+    return match?.[0] || finalUrl || input
 }
 
-async function tiktok3(url) {
-    const inputUrl = await resolveTikTokUrl(url)
-    let pageMeta = null
-
-    try {
-        pageMeta = await fetchTikTokMetadata(inputUrl)
-    } catch {}
-
-    const page = await axios.get(SNAPTIK_BASE, {
-        timeout: SNAPTIK_TIMEOUT,
-        headers: { 'User-Agent': SNAPTIK_USER_AGENT },
-        validateStatus: () => true
-    })
-
-    if (page.status !== 200) {
-        throw new Error(`SnapTik HTTP ${page.status}`)
-    }
-
-    const $ = load(String(page.data || ''))
-    const token = $('input[name="token"]').attr('value') || ''
-    const lang = $('input[name="lang"]').attr('value') || 'ID2'
-    if (!token) throw new Error('Token SnapTik tidak ditemukan')
-
-    const body = new URLSearchParams({
-        url: inputUrl,
-        lang,
-        token
-    }).toString()
-
-    const response = await axios.post(SNAPTIK_POST_URL, body, {
-        timeout: SNAPTIK_TIMEOUT,
+async function getHash(path) {
+    const home = await axios.get(`https://snaptik.cx${path}`, {
+        timeout: 60000,
         validateStatus: () => true,
         headers: {
-            'User-Agent': SNAPTIK_USER_AGENT,
-            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-            'Origin': 'https://snaptik.app',
-            'Referer': SNAPTIK_BASE,
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36'
+        }
+    })
+
+    if (home.status !== 200) {
+        throw new Error(`snaptik.cx HTTP ${home.status}`)
+    }
+
+    const lang = String(String(home.data || '').match(/currentLang\s*:\s*["']([^"']+)/i)?.[1] || 'en').trim() || 'en'
+    const scripts = [...String(home.data || '').matchAll(/<script>([\s\S]*?)<\/script>/g)].map((match) => match[1])
+    const code = scripts.find((script) => script.includes('function _0x74fb') && script.includes('eval(function'))
+    if (!code) throw new Error('Hash snaptik.cx tidak ditemukan')
+
+    const sandbox = {
+        window: {},
+        document: {},
+        localStorage: { getItem: () => null, setItem: () => {} },
+        atob: (value) => Buffer.from(String(value), 'base64').toString('binary'),
+        btoa: (value) => Buffer.from(String(value), 'binary').toString('base64'),
+        console
+    }
+
+    vm.createContext(sandbox)
+    vm.runInContext(code, sandbox, { timeout: 10000 })
+
+    const hash = String(sandbox.window?.rB?.hash || sandbox.rB?.hash || '').trim()
+    if (!hash) throw new Error('Hash snaptik.cx kosong')
+
+    return { lang, hash }
+}
+
+async function submit(url, mode) {
+    const config = {
+        video: { path: '/', type: 'tiktokVideo' },
+        mp3: { path: '/download-tiktok-mp3/', type: 'tiktokMp3' },
+        slide: { path: '/download-tiktok-slide/', type: 'tiktokSlide' },
+        story: { path: '/download-story-tiktok/', type: 'tiktokStory' }
+    }[mode]
+
+    if (!config) throw new Error(`Mode tidak didukung: ${mode}`)
+
+    const { lang, hash } = await getHash(config.path)
+    const form = new FormData()
+    form.append('type', config.type)
+    form.append('url', url)
+    form.append('hash', hash)
+
+    const response = await axios.post(`https://snaptik.cx/${lang}/check/`, form, {
+        timeout: 60000,
+        validateStatus: () => true,
+        headers: {
+            ...form.getHeaders(),
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36',
+            'Origin': 'https://snaptik.cx',
+            'Referer': `https://snaptik.cx${config.path}`,
             'X-Requested-With': 'XMLHttpRequest'
         }
     })
 
     if (response.status !== 200) {
-        throw new Error(`SnapTik download HTTP ${response.status}`)
+        const errorText = typeof response.data === 'string'
+            ? response.data
+            : response.data?.error || response.data?.message || ''
+        throw new Error(errorText || `snaptik.cx ${mode} check HTTP ${response.status}`)
     }
 
-    const decoded = decodeSnapTikScript(String(response.data || ''))
-    if (!decoded) throw new Error('Gagal decode respons SnapTik')
+    return load(String(response.data || ''))
+}
 
-    const htmlBlock = parseSnapTikHtmlBlock(decoded)
-    const $$ = load(htmlBlock || '<div></div>')
+async function tiktok2(url, options = {}) {
+    const inputUrl = await resolveTikTokUrl(url)
+    const requestedMode = String(options?.mode || '').trim().toLowerCase()
+    const mode = requestedMode || (/\/photo\/\d+/i.test(inputUrl) ? 'slide' : 'video')
+    const $ = await submit(inputUrl, mode)
 
-    const directUrl = extractSnapTikDirectUrl(decoded)
-    const tokenHdUrl = extractSnapTikHdTokenUrl(decoded)
-    const renderToken = $$('button.btn-render').attr('data-token') || ''
-    const renderPayload = decodeJwtPayload(renderToken)
-    let hdUrl = ''
+    const author = $('.user-username').first().text().trim()
+    const caption = $('.user-fullname').first().text().trim()
 
-    if (tokenHdUrl) {
-        const hdResponse = await axios.get(tokenHdUrl, {
-            timeout: SNAPTIK_TIMEOUT,
-            validateStatus: () => true,
-            headers: {
-                'User-Agent': SNAPTIK_USER_AGENT,
-                'Referer': SNAPTIK_BASE
+    if (mode === 'slide') {
+        const images = $('.tt-slide > div').map((index, element) => {
+            const node = $(element)
+            const preview = String(node.find('img').first().attr('src') || '').trim()
+            const href = String(node.find('a.btn-main[href]').first().attr('href') || '').trim()
+            return {
+                index: index + 1,
+                url: decodeWrappedUrl(href) || preview
             }
-        })
-        if (hdResponse.status === 200 && hdResponse.data && hdResponse.data.error === false && hdResponse.data.url) {
-            hdUrl = String(hdResponse.data.url).trim()
+        }).get().filter((item) => item.url)
+
+        if (!images.length) {
+            throw new Error('Foto slideshow snaptik.cx tidak ditemukan')
         }
-    }
 
-    const slideLinks = $$('a[data-event="download_albumPhoto_photo"]').map((i, el) => {
-        const url = String($$(el).attr('href') || '').trim()
-        const thumb = String($$(el).closest('.photo').find('img').attr('src') || '').trim()
-        return {
-            url,
-            thumbnail: thumb,
-            index: i + 1
-        }
-    }).get().filter((item) => item.url)
-
-    const payloadImages = Array.isArray(renderPayload?.image_urls)
-        ? renderPayload.image_urls.map((url, i) => ({
-            url: String(url || '').trim(),
-            thumbnail: String(url || '').trim(),
-            index: i + 1
-        })).filter((item) => item.url)
-        : []
-
-    const photoImages = slideLinks.length ? slideLinks : payloadImages
-    if (photoImages.length) {
         return {
             type: 'photo',
-            images: pageMeta?.images?.length ? pageMeta.images : photoImages,
-            music: {
-                url: pageMeta?.music?.url || String(renderPayload?.audio_url || '').trim(),
-                id: pageMeta?.music?.id || String(renderPayload?.id || '').trim(),
-                title: pageMeta?.music?.title || '',
-                author: pageMeta?.music?.author || '',
-                duration: pageMeta?.music?.duration || 0,
-                cover: pageMeta?.music?.cover || pageMeta?.video?.cover || photoImages[0]?.thumbnail || ''
-            },
-            author: {
-                id: pageMeta?.author?.id || '',
-                username: pageMeta?.author?.username || '',
-                nickname: pageMeta?.author?.nickname || $$('div.info span').first().text().trim() || '',
-                avatar: pageMeta?.author?.avatar || pageMeta?.video?.cover || photoImages[0]?.thumbnail || ''
-            },
-            description: pageMeta?.description || $$('div.video-title').first().text().trim() || '',
-            createTime: pageMeta?.createTime || '',
-            stats: {
-                likes: pageMeta?.stats?.likes,
-                comments: pageMeta?.stats?.comments,
-                shares: pageMeta?.stats?.shares,
-                plays: pageMeta?.stats?.plays,
-                saves: pageMeta?.stats?.saves
-            }
+            url: inputUrl,
+            author,
+            caption,
+            images,
+            audioUrl: decodeWrappedUrl(String($('#render-video').attr('data-mp3') || '').trim())
         }
     }
 
-    const finalVideoUrl = hdUrl || directUrl
-    if (!finalVideoUrl) {
-        throw new Error('URL video SnapTik tidak ditemukan')
+    const downloads = $('a.btn-main[href]').map((_, element) => {
+        const node = $(element)
+        const text = node.text().replace(/\s+/g, ' ').trim()
+        const href = String(node.attr('href') || '').trim()
+        return {
+            text,
+            rawUrl: href,
+            url: decodeWrappedUrl(href)
+        }
+    }).get().filter((item) => {
+        if (!item.url) return false
+        if (item.url === '/' || item.url === 'https://snaptik.cx' || item.url === 'https://snaptik.cx/') return false
+        return /download/i.test(item.text) && !/download\s+(other|another)/i.test(item.text)
+    })
+
+    const primary = downloads[0]
+    const primaryUrl = mode === 'mp3'
+        ? primary?.url
+        : String(primary?.rawUrl || '').trim() || primary?.url
+    if (!primaryUrl) {
+        throw new Error(`URL ${mode === 'mp3' ? 'audio' : 'video'} snaptik.cx tidak ditemukan`)
     }
 
-    const thumbApi = extractSnapTikThumbnailApi(decoded)
-    let thumbnail = ''
-    if (thumbApi) {
-        try {
-            const thumbRes = await axios.get(thumbApi, {
-                timeout: 30000,
-                validateStatus: () => true,
-                headers: { 'User-Agent': SNAPTIK_USER_AGENT }
-            })
-            if (thumbRes.status === 200 && thumbRes.data?.thumbnail_url) {
-                thumbnail = String(thumbRes.data.thumbnail_url || '').trim()
-            }
-        } catch {}
+    if (mode === 'mp3') {
+        return {
+            type: 'audio',
+            url: inputUrl,
+            author,
+            caption,
+            audio: primaryUrl
+        }
     }
-
-    const title = $$('div.video-title').first().text().trim() || ''
-    const authorText = $$('div.info span').first().text().trim() || ''
 
     return {
         type: 'video',
-        videoUrl: inputUrl,
-        video: {
-            url: finalVideoUrl,
-            urlHd: hdUrl || finalVideoUrl,
-            urlWatermark: directUrl || finalVideoUrl,
-            cover: pageMeta?.video?.cover || thumbnail,
-            duration: pageMeta?.video?.duration || 0,
-            width: pageMeta?.video?.width || 0,
-            height: pageMeta?.video?.height || 0
-        },
-        music: {
-            url: pageMeta?.music?.url || '',
-            id: pageMeta?.music?.id || '',
-            title: pageMeta?.music?.title || '',
-            author: pageMeta?.music?.author || '',
-            duration: pageMeta?.music?.duration || 0,
-            cover: pageMeta?.music?.cover || ''
-        },
-        author: {
-            id: pageMeta?.author?.id || '',
-            username: pageMeta?.author?.username || '',
-            nickname: pageMeta?.author?.nickname || authorText,
-            avatar: pageMeta?.author?.avatar || thumbnail
-        },
-        description: pageMeta?.description || title,
-        createTime: pageMeta?.createTime || '',
-        stats: {
-            likes: pageMeta?.stats?.likes,
-            comments: pageMeta?.stats?.comments,
-            shares: pageMeta?.stats?.shares,
-            plays: pageMeta?.stats?.plays,
-            saves: pageMeta?.stats?.saves
-        }
+        url: inputUrl,
+        author,
+        caption,
+        video: primaryUrl
     }
 }
 
-async function tiktok2(url) {
-    const { data } = await tikwmApi.post(
-        'https://www.tikwm.com/api/',
-        'url=' + encodeURIComponent(url),
-        {
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'User-Agent': TIKWM_USER_AGENT
-            }
-        }
-    )
-
-    if (data.code !== 0 || !data.data) {
-        throw new Error(data.msg || 'Failed to fetch TikTok data')
-    }
-
-    const d = data.data
-    const isSlideshow = d.images && d.images.length > 0
-
-    if (isSlideshow) {
-        return {
-            type: 'photo',
-            images: d.images.map((imgUrl, i) => ({
-                url: imgUrl,
-                thumbnail: null,
-                index: i + 1
-            })),
-            music: {
-                url: d.music,
-                id: d.music_info?.id,
-                title: d.music_info?.title,
-                author: d.music_info?.author,
-                duration: d.music_info?.duration,
-                cover: d.music_info?.cover || ''
-            },
-            author: {
-                id: d.author?.id,
-                username: d.author?.unique_id,
-                nickname: d.author?.nickname,
-                avatar: d.author?.avatar
-            },
-            description: d.title,
-            createTime: d.create_time,
-            stats: {
-                likes: d.digg_count,
-                comments: d.comment_count,
-                shares: d.share_count,
-                plays: d.play_count,
-                saves: d.collect_count
-            }
-        }
-    }
-
-    const videoId = String(d.id || '').trim()
-    const authorUsername = String(d.author?.unique_id || '').trim()
-
-    return {
-        type: 'video',
-        videoId,
-        videoUrl: (authorUsername && videoId)
-            ? `https://www.tiktok.com/@${authorUsername}/video/${videoId}`
-            : '',
-        video: {
-            url: d.hdplay || d.play,
-            urlHd: d.hdplay,
-            urlWatermark: d.wmplay,
-            cover: d.cover || d.origin_cover,
-            duration: d.duration,
-            width: d.width,
-            height: d.height
-        },
-        music: {
-            url: d.music,
-            id: d.music_info?.id,
-            title: d.music_info?.title,
-            author: d.music_info?.author,
-            duration: d.music_info?.duration,
-            cover: d.music_info?.cover || ''
-        },
-        author: {
-            id: d.author?.id,
-            username: authorUsername,
-            nickname: d.author?.nickname,
-            avatar: d.author?.avatar
-        },
-        description: d.title,
-        createTime: d.create_time,
-        stats: {
-            likes: d.digg_count,
-            comments: d.comment_count,
-            shares: d.share_count,
-            plays: d.play_count,
-            saves: d.collect_count
-        }
-    }
-}
-
-async function searchTikTok(query, limit = 10) {
-    const q = String(query || '').trim()
-    if (!q) throw new Error('Query pencarian kosong')
-
-    const { data } = await searchApi.get('https://api.baguss.xyz/api/search/tiktok', {
-        params: { q }
-    })
-
-    if (!data || data.status !== true || !Array.isArray(data.results)) {
-        throw new Error(data?.message || data?.msg || 'Gagal mengambil hasil pencarian TikTok')
-    }
-
-    const normalized = data.results.map((item) => {
-        const username = item?.author?.unique_id || item?.author?.username || ''
-        const videoId = String(item?.video_id || '').trim()
-        const permalink = (username && videoId)
-            ? `https://www.tiktok.com/@${username}/video/${videoId}`
-            : ''
-
-        return {
-            id: videoId,
-            title: item?.title || '',
-            duration: Number(item?.duration || 0),
-            url: permalink,
-            videoUrl: item?.play_url || item?.wmplay_url || '',
-            audioUrl: item?.music || item?.music_info?.play || '',
-            cover: item?.cover || item?.origin_cover || item?.music_info?.cover || '',
-            musicId: item?.music_id || item?.music_info?.id || '',
-            musicTitle: item?.music_info?.title || '',
-            musicAuthor: item?.music_info?.author || '',
-            author: {
-                id: item?.author?.id,
-                username,
-                nickname: item?.author?.nickname || ''
-            },
-            stats: {
-                plays: item?.play_count,
-                likes: item?.digg_count,
-                comments: item?.comment_count,
-                shares: item?.share_count,
-                downloads: item?.download_count
-            }
-        }
-    })
-
-    const lim = Math.max(1, Math.min(60, Number(limit) || 10))
-    return normalized.slice(0, lim)
-}
-
-export { MusicalDown, searchTikTok, tiktok2, tiktok3 }
+export { tiktok2 }

@@ -12,7 +12,7 @@ export const MENU = {
     Group: ['add', 'addwarn', 'afk', 'antibot', 'antihidetag', 'antilinkch', 'antilinkgc', 'antiluar', 'antispam', 'close', 'delete', 'delppgc', 'delwarn', 'demote', 'goodbye', 'hidetag', 'kick', 'listwarn', 'open', 'promote', 'setclose', 'setgoodbye', 'setopen', 'setppgc', 'setwelcome', 'tagall', 'welcome'],
     Owner: ['addban', 'addlimit', 'addowner', 'addprem', 'addrespon', 'autoread', 'ceklimit', 'delban', 'dellimit', 'delowner', 'delppbot', 'delprem', 'delrespon', 'listban', 'listgc', 'listowner', 'listprem', 'listrespon', 'onlygrup', 'onlyowner', 'onlypc', 'onlyprem', 'public', 'quoted', 'resetdb', 'self', 'setppbot'],
     News: ['aljazeera', 'antara', 'apnews', 'bbc', 'bbcworld', 'detik', 'foxnews', 'hackernews', 'harianjogja', 'idntimes', 'indozone', 'inews', 'jawapos', 'jogja', 'jpn', 'katadata', 'kompas', 'kontan', 'kumparan', 'liputan6', 'medcom', 'merdeka', 'okezone', 'republika', 'sindonews', 'suara', 'tempo', 'thetimes', 'tribun', 'tvone'],
-    Convert: ['bass', 'blown', 'deep', 'earrape', 'fast', 'fat', 'nightcore', 'readqr', 'reverse', 'robot', 'slow', 'smooth', 'squirrel', 'toaudio', 'tobase64', 'tocjs', 'toesm', 'toidr', 'toimg', 'topdf', 'toqr', 'toptv', 'tousd', 'tovn', 'tovideo'],
+    Convert: ['bass', 'blown', 'deep', 'earrape', 'fast', 'fat', 'nightcore', 'readqr', 'reverse', 'robot', 'slow', 'smooth', 'squirrel', 'toaudio', 'tobase64', 'toidr', 'toimg', 'topdf', 'toqr', 'toptv', 'tousd', 'tovn', 'tovideo'],
     Store: ['bagi', 'diskon', 'done', 'kali', 'kurang', 'persen', 'proses', 'tambah', 'total'],
 }
 
