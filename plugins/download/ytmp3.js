@@ -59,7 +59,7 @@ export default {
                     contextInfo: {
                         externalAdReply: {
                             title: res.title,
-                            body: `${channelName}`,
+                            body: `${channelName} • ${durasi}`,
                             ...(thumbBuffer ? { thumbnail: thumbBuffer } : {}),
                             ...(thumbUrl ? { thumbnailUrl: thumbUrl } : {}),
                             mediaUrl: q,

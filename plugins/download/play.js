@@ -57,7 +57,11 @@ export default {
                 return sock.sendMessage(jid, { text: '❌ Error.' }, { quoted: msg })
             }
 
-            const channelName = String(res?.channel?.name || metaFromSearch?.channel || '-').trim()
+            const channelFallback = String(metaFromSearch?.channel || '-').trim()
+            const channelPrimary = String(res?.channel?.name || '').trim()
+            const channelName = channelPrimary && channelPrimary.toLowerCase() !== 'youtube'
+                ? channelPrimary
+                : channelFallback
             const durasi = String(res?.durationLabel || metaFromSearch?.duration || '-').trim()
 
             let thumbBuffer = null
@@ -79,7 +83,7 @@ export default {
                     contextInfo: {
                         externalAdReply: {
                             title: res.title,
-                            body: `${channelName}`,
+                            body: `${channelName} • ${durasi}`,
                             ...(thumbBuffer ? { thumbnail: thumbBuffer } : {}),
                             ...(thumbUrl ? { thumbnailUrl: thumbUrl } : {}),
                             mediaUrl: url,
