@@ -151,9 +151,3 @@ export {
     savetwt,
     isTwitterUrl
 }
-
-
-(async () => {
-  const result = await savetwt('https://x.com/TravelBucketX/status/2036481698347753939?s=20');
-  console.log(result);
-})();
