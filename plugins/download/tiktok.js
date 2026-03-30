@@ -1,10 +1,11 @@
 import axios from 'axios'
 import { tikdownloader } from '../../scrape/tikdownloader.js'
+import { toAudio } from '../../src/utils/converter.js'
 
 export default {
     name: 'tiktok',
     aliases: ['tt', 'tiktokmp3', 'ttmp3', 'tiktokstory', 'ttstory', 'tiktokslide', 'ttslide'],
-    description: 'Download tiktok via MusicalDown',
+    description: 'Download tiktok via SnapTik',
     execute: async ({ sock, msg, text, prefix, command, react, useLimit }) => {
         const jid = msg.key.remoteJid
         const url = String(text || '').match(/https?:\/\/(vm\.|vt\.|www\.|m\.)?tiktok\.com\/[^\s]+/i)?.[0]
@@ -46,42 +47,51 @@ ${captionText}`
 
                 await sock.sendMessage(jid, { albumMessage: albumItems }, { quoted: msg })
 
-                if (result.audio) {
-                    const { data } = await axios.get(result.audio, {
-                        responseType: 'arraybuffer',
-                        timeout: 60000,
-                        headers: {
-                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                        }
-                    })
-                    const audio = Buffer.from(data)
-                    await sock.sendMessage(jid, {
-                        audio,
-                        mimetype: 'audio/mpeg',
-                        ptt: false
-                    }, { quoted: msg })
-                }
-
                 useLimit()
                 await react('✅')
                 return
             }
 
             if (String(command || '').toLowerCase().includes('mp3')) {
-                if (!result.audio) {
+                if (result.audio) {
+                    try {
+                        const { data } = await axios.get(result.audio, {
+                            responseType: 'arraybuffer',
+                            timeout: 60000,
+                            headers: {
+                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                            }
+                        })
+                        const audio = Buffer.from(data)
+                        await sock.sendMessage(jid, {
+                            audio,
+                            mimetype: 'audio/mpeg',
+                            ptt: false
+                        }, { quoted: msg })
+
+                        useLimit()
+                        await react('✅')
+                        return
+                    } catch (error) {
+                        console.error('[tiktok] mp3 direct failed:', error.message)
+                    }
+                }
+
+                const sourceVideo = result.video || result.renderVideo
+                if (!sourceVideo) {
                     throw new Error('Audio TikTok tidak tersedia')
                 }
 
-                const { data } = await axios.get(result.audio, {
+                const { data } = await axios.get(sourceVideo, {
                     responseType: 'arraybuffer',
                     timeout: 60000,
                     headers: {
                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
                     }
                 })
-                const audio = Buffer.from(data)
+                const converted = await toAudio(Buffer.from(data), 'mp4')
                 await sock.sendMessage(jid, {
-                    audio,
+                    audio: converted.data,
                     mimetype: 'audio/mpeg',
                     ptt: false
                 }, { quoted: msg })

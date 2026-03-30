@@ -1,130 +1,163 @@
 import axios from 'axios'
-import { CookieJar } from 'tough-cookie'
-import { wrapper } from 'axios-cookiejar-support'
 import { load } from 'cheerio'
+import vm from 'node:vm'
 
-const client = wrapper(axios.create({
-    jar: new CookieJar(),
+const client = axios.create({
     timeout: 30000,
     headers: {
-        'user-agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36',
-        'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-        'accept-language': 'en-US,en;q=0.9',
-        'upgrade-insecure-requests': '1'
+        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36',
+        accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'accept-language': 'en-US,en;q=0.9'
     },
     validateStatus: () => true
-}))
+})
 
-const parseBackgroundImage = (value) => {
-    const match = String(value || '').match(/url\(([^)]+)\)/i)
-    return String(match?.[1] || '').trim()
-}
-
-async function getResultPage(url) {
-    const input = String(url || '').trim()
-    if (!input) throw new Error('URL TikTok kosong')
-
-    const home = await client.get('https://musicaldown.com/download')
-    if (home.status !== 200) {
-        throw new Error(`MusicalDown HTTP ${home.status}`)
+const decodePackedResponse = (script) => {
+    const source = String(script || '').trim()
+    if (!source.startsWith('var _0x') || !source.includes('eval(function')) {
+        throw new Error('Respons SnapTik tidak valid')
     }
 
-    const $home = load(String(home.data || ''))
-    const form = $home('#submit-form')
-    if (!form.length) throw new Error('Form MusicalDown tidak ditemukan')
+    const sandbox = {
+        globalThis: {},
+        window: { location: { hostname: 'snaptik.app' } },
+        document: {},
+        console: { log() {} },
+        $: () => ({ remove() {}, style: {}, innerHTML: '' }),
+        gtag() {}
+    }
 
-    const body = new URLSearchParams()
+    vm.runInNewContext(
+        source.replace('eval(function', 'globalThis.__decoded=(function'),
+        sandbox,
+        { timeout: 5000 }
+    )
 
-    form.find('input').each((_, element) => {
-        const node = $home(element)
-        const name = node.attr('name')
-        const type = node.attr('type') || 'text'
-        const value = node.attr('value') || ''
-        if (!name) return
-        body.set(name, type === 'text' ? input : value)
-    })
+    const decoded = String(sandbox.globalThis.__decoded || '').trim()
+    if (!decoded.includes('$("#download").innerHTML')) {
+        throw new Error('HTML hasil SnapTik tidak ditemukan')
+    }
 
-    const result = await client.post('https://musicaldown.com/download', body.toString(), {
+    return decoded
+}
+
+const extractResultHtml = (decoded) => {
+    const match = decoded.match(/innerHTML\s*=\s*("(?:\\.|[^"])*")/)
+    if (!match?.[1]) throw new Error('Konten hasil SnapTik tidak ditemukan')
+    return JSON.parse(match[1])
+}
+
+const cleanText = (value) => String(value || '').replace(/\s+/g, ' ').trim()
+
+const getFormState = async () => {
+    const response = await client.get('https://snaptik.app/en2', {
         headers: {
-            'content-type': 'application/x-www-form-urlencoded',
-            origin: 'https://musicaldown.com',
-            referer: 'https://musicaldown.com/download'
+            referer: 'https://snaptik.app/en2'
         }
     })
 
-    if (result.status !== 200) {
-        throw new Error(`MusicalDown download HTTP ${result.status}`)
+    if (response.status !== 200) {
+        throw new Error(`SnapTik HTTP ${response.status}`)
     }
 
-    return load(String(result.data || ''))
+    const $ = load(String(response.data || ''))
+    const token = $('input[name="token"]').attr('value')
+    const lang = $('input[name="lang"]').attr('value') || 'en2'
+
+    if (!token) throw new Error('Token SnapTik tidak ditemukan')
+    return { token, lang }
+}
+
+const resolveHdUrl = async (tokenHd, backup) => {
+    const fallback = String(backup || '').trim()
+    const input = String(tokenHd || '').trim()
+    if (!input) return fallback
+
+    try {
+        const response = await client.get(input, {
+            headers: {
+                accept: 'application/json,text/plain,*/*',
+                referer: 'https://snaptik.app/en2',
+                origin: 'https://snaptik.app'
+            }
+        })
+
+        if (response.status === 200 && response.data && !response.data.error && response.data.url) {
+            return String(response.data.url).trim()
+        }
+    } catch {}
+
+    return fallback
 }
 
 async function tikdownloader(url) {
-    const $ = await getResultPage(url)
+    const input = cleanText(url)
+    if (!input) throw new Error('URL TikTok kosong')
 
-    const title = $('title').first().text().replace(/\s+/g, ' ').trim()
-    const author = $('.video-author b').first().text().trim()
-        || $('.video-author').first().text().trim()
-        || title.replace(/\s*\|\s*Download Now!?$/i, '').trim()
-    const caption = $('.video-desc').first().text().trim()
-        || $('.thumbnail .content h3').first().text().replace(/\s+/g, ' ').trim()
-        || ''
+    const { token, lang } = await getFormState()
+    const body = new URLSearchParams({ url: input, lang, token }).toString()
 
-    if ($('#SlideButton').length || $('.card').length) {
-        const images = $('.card').map((index, element) => {
-            const node = $(element)
-            const preview = String(node.find('.card-image img').attr('src') || '').trim()
-            const downloadUrl = String(node.find('.card-action a[href]').attr('href') || '').trim()
+    const response = await client.post('https://snaptik.app/abc2.php', body, {
+        headers: {
+            'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
+            'x-requested-with': 'XMLHttpRequest',
+            referer: 'https://snaptik.app/en2',
+            origin: 'https://snaptik.app'
+        }
+    })
 
-            return {
-                index: index + 1,
-                url: downloadUrl || preview,
-                thumbnail: preview || downloadUrl
-            }
-        }).get().filter((item) => item.url)
+    if (response.status !== 200) {
+        throw new Error(`SnapTik HTTP ${response.status}`)
+    }
+
+    const decoded = decodePackedResponse(String(response.data || ''))
+    const html = extractResultHtml(decoded)
+    const $ = load(html)
+
+    const rawCaption = cleanText($('.video-title').first().text())
+    const caption = /^(no description|untitled)$/i.test(rawCaption) ? '' : rawCaption
+    const author = cleanText($('.info span').first().text()) || '-'
+    const thumbnail = String($('#thumbnail').attr('src') || $('.avatar').first().attr('src') || '').trim()
+
+    const renderButton = $('.btn-render[data-token]').first()
+    if (renderButton.length) {
+        const images = $('.photo a[href]').map((index, element) => ({
+            index: index + 1,
+            url: String($(element).attr('href') || '').trim()
+        })).get().filter((item) => item.url)
 
         if (!images.length) {
-            throw new Error('Foto slideshow MusicalDown tidak ditemukan')
+            throw new Error('Foto slideshow SnapTik tidak ditemukan')
         }
 
         return {
             type: 'photo',
-            url: String(url || '').trim(),
+            url: input,
             author,
             caption,
-            images,
-            audio: String($('a.download[data-event="mp3_download_click"]').attr('href') || '').trim()
+            thumbnail,
+            images
         }
     }
 
-    const downloads = $('a.download[href], a[data-event][href]').map((_, element) => {
-        const node = $(element)
-        const href = String(node.attr('href') || '').trim()
-        const event = String(node.attr('data-event') || '').trim().toLowerCase()
-        const text = node.text().replace(/\s+/g, ' ').trim()
-        return { href, event, text }
-    }).get().filter((item) => item.href && /^https?:\/\//i.test(item.href))
+    const primaryVideo = String($('.download-file[href]').first().attr('href') || '').trim()
+    const hdButton = $('.btn-download-hd[data-tokenhd]').first()
+    const video = await resolveHdUrl(
+        String(hdButton.attr('data-tokenhd') || '').trim(),
+        String(hdButton.attr('data-backup') || primaryVideo).trim()
+    )
 
-    const video = downloads.find((item) => item.event === 'mp4_download_click')
-    const videoHd = downloads.find((item) => item.event === 'hd_download_click')
-    const videoWatermark = downloads.find((item) => item.event === 'watermark_download_click')
-    const audio = downloads.find((item) => item.event === 'mp3_download_click')
-
-    const primaryVideo = videoHd?.href || video?.href || videoWatermark?.href
-    if (!primaryVideo) {
-        throw new Error('URL video MusicalDown tidak ditemukan')
+    if (!video) {
+        throw new Error('URL video SnapTik tidak ditemukan')
     }
 
     return {
         type: 'video',
-        url: String(url || '').trim(),
+        url: input,
         author,
         caption,
-        thumbnail: parseBackgroundImage($('.bg-overlay').first().attr('style') || ''),
-        video: primaryVideo,
-        videoHd: videoHd?.href || '',
-        videoWatermark: videoWatermark?.href || '',
-        audio: audio?.href || ''
+        thumbnail,
+        video
     }
 }
 
