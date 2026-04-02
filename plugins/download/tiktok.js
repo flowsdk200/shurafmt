@@ -4,7 +4,7 @@ import { toAudio } from '../../src/utils/converter.js'
 
 export default {
     name: 'tiktok',
-    aliases: ['tt', 'tiktokmp3', 'ttmp3', 'tiktokstory', 'ttstory', 'tiktokslide', 'ttslide'],
+    aliases: ['tt', 'tiktokmp3', 'ttmp3', 'tiktokslide', 'ttslide'],
     description: 'Download tiktok via SnapTik',
     execute: async ({ sock, msg, text, prefix, command, react, useLimit }) => {
         const jid = msg.key.remoteJid
@@ -27,30 +27,6 @@ export default {
 
 ${captionText}`
                 : `\`Author: ${author}\``
-
-            if (result.type === 'photo') {
-                const mediaBuffers = await Promise.all(result.images.map(async (item) => {
-                    const { data } = await axios.get(item.url, {
-                        responseType: 'arraybuffer',
-                        timeout: 60000,
-                        headers: {
-                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                        }
-                    })
-
-                    return Buffer.from(data)
-                }))
-                const albumItems = mediaBuffers.map((buffer, index) => ({
-                    image: buffer,
-                    ...(index === 0 ? { caption } : {})
-                }))
-
-                await sock.sendMessage(jid, { albumMessage: albumItems }, { quoted: msg })
-
-                useLimit()
-                await react('✅')
-                return
-            }
 
             if (String(command || '').toLowerCase().includes('mp3')) {
                 if (result.audio) {
@@ -95,6 +71,30 @@ ${captionText}`
                     mimetype: 'audio/mpeg',
                     ptt: false
                 }, { quoted: msg })
+
+                useLimit()
+                await react('✅')
+                return
+            }
+
+            if (result.type === 'photo') {
+                const mediaBuffers = await Promise.all(result.images.map(async (item) => {
+                    const { data } = await axios.get(item.url, {
+                        responseType: 'arraybuffer',
+                        timeout: 60000,
+                        headers: {
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                        }
+                    })
+
+                    return Buffer.from(data)
+                }))
+                const albumItems = mediaBuffers.map((buffer, index) => ({
+                    image: buffer,
+                    ...(index === 0 ? { caption } : {})
+                }))
+
+                await sock.sendMessage(jid, { albumMessage: albumItems }, { quoted: msg })
 
                 useLimit()
                 await react('✅')
