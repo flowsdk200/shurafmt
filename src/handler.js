@@ -849,12 +849,12 @@ export const handleMessage = async (sock, m) => {
                 if (plugin.ownerOnly && !isOwner) {
                     if (plugin.silentUnauthorized) return
                     return sock.sendMessage(msg.key.remoteJid, {
-                        text: '❌ Command ini hanya bisa digunakan oleh owner bot.'
+                        text: 'Khusus owner!'
                     }, { quoted: msg })
                 }
                 if (plugin.premiumOnly && !isOwner && !isPremium) {
                     return sock.sendMessage(msg.key.remoteJid, {
-                        text: '❌ Command ini hanya bisa digunakan oleh owner atau pengguna premium.'
+                        text: 'Khusus premium!'
                     }, { quoted: msg })
                 }
                 if (!usersDb.hasLimit(sender)) {
@@ -925,35 +925,35 @@ export const handleMessage = async (sock, m) => {
             if (command.ownerOnly && !isOwner) {
                 if (command.silentUnauthorized) return
                 return sock.sendMessage(msg.key.remoteJid, {
-                    text: '❌ Command ini khusus owner.'
+                    text: 'Khusus owner!'
                 }, { quoted: msg })
             }
 
             /** Group-only guard **/
             if (command.groupOnly && !isGroup) {
                 return sock.sendMessage(msg.key.remoteJid, {
-                    text: '❌ Command ini khusus grup.'
+                    text: 'Khusus grup!'
                 }, { quoted: msg })
             }
 
             /** Bot must be admin guard **/
             if (command.botAdmin && !isBotAdmin) {
                 return sock.sendMessage(msg.key.remoteJid, {
-                    text: '❌ Command ini hanya bisa digunakan saat bot admin.'
+                    text: 'Hanya bisa digunakan saat bot admin!'
                 }, { quoted: msg })
             }
 
             /** Sender must be group admin guard **/
             if (command.adminOnly && !isAdmin) {
                 return sock.sendMessage(msg.key.remoteJid, {
-                    text: '❌ Command ini khusus admin.'
+                    text: 'Khusus admin!'
                 }, { quoted: msg })
             }
 
             /** Premium-only guard (owner selalu lolos) **/
             if (command.premiumOnly && !isOwner && !isPremium) {
                 return sock.sendMessage(msg.key.remoteJid, {
-                    text: '❌ Command ini khusus premium.'
+                    text: 'Khusus premium!'
                 }, { quoted: msg })
             }
 

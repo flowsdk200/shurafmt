@@ -36,8 +36,8 @@ const config = {
         free: 50
     },
     groupDefaults: {
-        welcome: true,
-        goodbye: true,
+        welcome: false,
+        goodbye: false,
         antiluar: false
     }
 }
