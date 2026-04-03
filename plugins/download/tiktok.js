@@ -1,14 +1,14 @@
 import axios from 'axios'
-import { tikdownloader } from '../../scrape/tikdownloader.js'
+import { tikdownloader } from '../../scrape/savetik.js'
 import { toAudio } from '../../src/utils/converter.js'
 
 export default {
     name: 'tiktok',
     aliases: ['tt', 'tiktokmp3', 'ttmp3', 'tiktokslide', 'ttslide'],
-    description: 'Download tiktok via SnapTik',
+    description: 'Download TikTok dan Douyin via SaveTik',
     execute: async ({ sock, msg, text, prefix, command, react, useLimit }) => {
         const jid = msg.key.remoteJid
-        const url = String(text || '').match(/https?:\/\/(vm\.|vt\.|www\.|m\.)?tiktok\.com\/[^\s]+/i)?.[0]
+        const url = String(text || '').match(/https?:\/\/(?:(?:vm|vt|www|m)\.)?tiktok\.com\/[^\s]+|https?:\/\/(?:(?:www|v)\.)?douyin\.com\/[^\s]+/i)?.[0]
 
         if (!url) {
             return sock.sendMessage(jid, {
@@ -22,11 +22,11 @@ export default {
             const result = await tikdownloader(url)
             const author = String(result.author || '-').trim() || '-'
             const captionText = String(result.caption || '').trim()
-            const caption = captionText
-                ? `\`Author: ${author}\`
-
-${captionText}`
-                : `\`Author: ${author}\``
+            const caption = author !== '-' && captionText
+                ? `\`Author: ${author}\`\n\n${captionText}`
+                : author !== '-'
+                    ? `\`Author: ${author}\``
+                    : captionText
 
             if (String(command || '').toLowerCase().includes('mp3')) {
                 if (result.audio) {
