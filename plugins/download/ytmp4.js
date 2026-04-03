@@ -3,6 +3,106 @@ import { search } from '../../scrape/ytsearch.js'
 import { getBuffer, toVideo } from '../../src/utils/converter.js'
 import axios from 'axios'
 
+const DOCUMENT_THRESHOLD = 100 * 1024 * 1024
+
+const extractVideoId = (value = '') => {
+    const text = String(value || '').trim()
+    const match = text.match(/(?:youtube\.com\/(?:watch\?.*?v=|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/i)
+    return match?.[1] || ''
+}
+
+const formatDuration = (seconds) => {
+    const total = Number(seconds)
+    if (!Number.isFinite(total) || total <= 0) return '-'
+    const hours = Math.floor(total / 3600)
+    const minutes = Math.floor((total % 3600) / 60)
+    const secs = total % 60
+    if (hours > 0) {
+        return `${hours}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+    }
+    return `${minutes}:${String(secs).padStart(2, '0')}`
+}
+
+const fetchWatchMetadata = async (url) => {
+    try {
+        const videoId = extractVideoId(url)
+        if (!videoId) return null
+
+        const { data } = await axios.get(`https://www.youtube.com/watch?v=${videoId}&hl=en`, {
+            timeout: 20000,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept-Language': 'en-US,en;q=0.9,id;q=0.8'
+            }
+        })
+
+        const html = String(data || '')
+        const playerResponseMatch = html.match(/var ytInitialPlayerResponse\s*=\s*(\{.+?\});/)
+        let title = ''
+        let author = ''
+        let viewCount = ''
+        let lengthSeconds = ''
+        let thumbnail = ''
+
+        if (playerResponseMatch?.[1]) {
+            try {
+                const playerResponse = JSON.parse(playerResponseMatch[1])
+                const videoDetails = playerResponse?.videoDetails || {}
+                const microformat = playerResponse?.microformat?.playerMicroformatRenderer || {}
+                title = String(videoDetails.title || '')
+                author = String(videoDetails.author || microformat.ownerChannelName || '')
+                viewCount = String(videoDetails.viewCount || '')
+                lengthSeconds = String(videoDetails.lengthSeconds || '')
+                thumbnail =
+                    String(microformat?.thumbnail?.thumbnails?.at?.(-1)?.url || '') ||
+                    String(videoDetails?.thumbnail?.thumbnails?.at?.(-1)?.url || '')
+            } catch {}
+        }
+
+        if (!title) {
+            title =
+                html.match(/<meta name="title" content="([^"]+)"/i)?.[1] ||
+                html.match(/"title":"([^"]+)"/)?.[1] ||
+                ''
+        }
+
+        if (!author) {
+            author =
+                html.match(/"ownerChannelName":"([^"]+)"/)?.[1] ||
+                html.match(/"author":"([^"]+)"/)?.[1] ||
+                ''
+        }
+
+        if (!viewCount) {
+            viewCount =
+                html.match(/itemprop="interactionCount"\s+content="(\d+)"/i)?.[1] ||
+                html.match(/"viewCount":"(\d+)"/)?.[1] ||
+                ''
+        }
+
+        if (!lengthSeconds) {
+            lengthSeconds = html.match(/"lengthSeconds":"(\d+)"/)?.[1] || ''
+        }
+
+        if (!thumbnail) {
+            thumbnail =
+                html.match(/<meta property="og:image" content="([^"]+)"/i)?.[1] ||
+                html.match(/"thumbnailUrl":"([^"]+)"/)?.[1] ||
+                ''
+        }
+
+        return {
+            title: title.replace(/\u0026/g, '&'),
+            channel: author.replace(/\u0026/g, '&'),
+            views: viewCount,
+            duration: formatDuration(lengthSeconds),
+            thumbnail: thumbnail.replace(/\\u0026/g, '&')
+        }
+    } catch {
+        return null
+    }
+}
+
 const fetchYouTubeExtra = async (url) => {
     try {
         const { data } = await axios.get(url, {
@@ -97,17 +197,23 @@ export default {
             let views = '-'
             let published = '-'
 
-            if (!thumbUrl || channelName === '-' || durasi === '-') {
+            const watchMeta = await fetchWatchMetadata(q)
+            if (watchMeta) {
+                title = watchMeta.title || title
+                channelName = watchMeta.channel || channelName
+                durasi = watchMeta.duration || durasi
+                thumbUrl = watchMeta.thumbnail || thumbUrl
+                views = watchMeta.views || views
+            }
+
+            if ((!thumbUrl || channelName === '-' || durasi === '-') && title) {
                 try {
                     const results = await search(title, 1)
                     const first = results?.[0]
                     if (first) {
-                        title = first.title || title
-                        channelName = first.channel || channelName
-                        durasi = first.duration || durasi
                         thumbUrl = first.thumbnail || thumbUrl
-                        views = first.views || views
-                        published = first.published || published
+                        if (views === '-') views = first.views || views
+                        if (published === '-') published = first.published || published
                     }
                 } catch {}
             }
@@ -121,15 +227,26 @@ export default {
             const viewsLabel = formatViewsEnglish(views)
             const uploadLabel = formatUploadDate(published)
 
-            await sock.sendMessage(jid, {
-                video,
-                mimetype: 'video/mp4',
-                caption:
-                    `\`\`\`• Title: ${title}\n` +
-                    `• Channel: ${channelName}\n` +
-                    `• Duration: ${durasi}\n` +
-                    `• Views: ${viewsLabel}\`\`\``
-            }, { quoted: msg })
+            const caption =
+                `\`\`\`• Title: ${title}\n` +
+                `• Channel: ${channelName}\n` +
+                `• Duration: ${durasi}\n` +
+                `• Views: ${viewsLabel}\`\`\``
+
+            if (Buffer.isBuffer(video) && video.length > DOCUMENT_THRESHOLD) {
+                await sock.sendMessage(jid, {
+                    document: video,
+                    mimetype: 'video/mp4',
+                    fileName: `${String(title || 'youtube-video').replace(/[\\/:*?"<>|]/g, '-').trim() || 'youtube-video'}.mp4`,
+                    caption
+                }, { quoted: msg })
+            } else {
+                await sock.sendMessage(jid, {
+                    video,
+                    mimetype: 'video/mp4',
+                    caption
+                }, { quoted: msg })
+            }
 
             useLimit()
             await react('✅')
