@@ -32,12 +32,12 @@ export default {
                 : 'Permanent'
             const remaining = expiry ? timeRemaining(expiry) : 'Permanent'
             const mentionTag = `@${u.jid.split('@')[0]}`
-            return ` ${i + 1}. ${mentionTag}\n • Exp: ${expiryStr}\n • Sisa: ${remaining}`
+            return ` ${i + 1}. ${mentionTag}\n • Exp: ${expiryStr}\n • Remaining: ${remaining}`
         }).join('\n\n')
 
         useLimit()
         return sock.sendMessage(jid, {
-            text: `Daftar ban aktif (${list.length})\n\n${rows}`,
+            text: `*List banned users (${list.length})*\n\n${rows}`,
             mentions
         }, { quoted: msg })
     }

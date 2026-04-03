@@ -32,12 +32,12 @@ export default {
             const remaining = timeRemaining(expiry)
             const name = (u.name || 'user').trim()
             const mentionTag = `@${u.jid.split('@')[0]}`
-            return ` ${i + 1}. ${name} (${mentionTag})\n • Exp: ${expiryStr} (sisa: ${remaining})`
+            return ` ${i + 1}. ${name} (${mentionTag})\n • Exp: ${expiryStr}\n • Remaining: ${remaining}`
         }).join('\n\n')
 
         useLimit()
         return sock.sendMessage(jid, {
-            text: `Daftar premium aktif (${list.length})\n\n${rows}`,
+            text: `*List premium users (${list.length})*\n\n${rows}`,
             mentions
         }, { quoted: msg })
     }

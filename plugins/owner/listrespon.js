@@ -31,12 +31,12 @@ export default {
 
         const rows = list.map((item, index) => {
             const createdAt = formatJakartaDateTime(item.createdAt)
-            return ` ${index + 1}. ${item.key}\n • Type: ${item.type}\n • Dibuat: ${createdAt}`
+            return ` ${index + 1}. ${item.key}\n • Type: ${item.type}\n • Created: ${createdAt}`
         }).join('\n\n')
 
         if (typeof useLimit === 'function') useLimit()
         return sock.sendMessage(jid, {
-            text: `DAFTAR RESPON (${list.length})\n\n${rows}`
+            text: `*List respons (${list.length})*\n\n${rows}`
         }, { quoted: msg })
     }
 }

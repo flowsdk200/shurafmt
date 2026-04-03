@@ -37,7 +37,7 @@ export default {
 
         useLimit()
         return sock.sendMessage(jid, {
-            text: `Daftar owner (${all.length})\n\n${rows}`,
+            text: `*List owner (${all.length})*\n\n${rows}`,
             mentions
         }, { quoted: msg })
     }
