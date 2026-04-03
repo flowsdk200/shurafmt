@@ -38,58 +38,21 @@ const fetchWatchMetadata = async (url) => {
 
         const html = String(data || '')
         const playerResponseMatch = html.match(/var ytInitialPlayerResponse\s*=\s*(\{.+?\});/)
-        let title = ''
-        let author = ''
-        let viewCount = ''
-        let lengthSeconds = ''
-        let thumbnail = ''
+        if (!playerResponseMatch?.[1]) return null
 
-        if (playerResponseMatch?.[1]) {
-            try {
-                const playerResponse = JSON.parse(playerResponseMatch[1])
-                const videoDetails = playerResponse?.videoDetails || {}
-                const microformat = playerResponse?.microformat?.playerMicroformatRenderer || {}
-                title = String(videoDetails.title || '')
-                author = String(videoDetails.author || microformat.ownerChannelName || '')
-                viewCount = String(videoDetails.viewCount || '')
-                lengthSeconds = String(videoDetails.lengthSeconds || '')
-                thumbnail =
-                    String(microformat?.thumbnail?.thumbnails?.at?.(-1)?.url || '') ||
-                    String(videoDetails?.thumbnail?.thumbnails?.at?.(-1)?.url || '')
-            } catch {}
-        }
+        const playerResponse = JSON.parse(playerResponseMatch[1])
+        const videoDetails = playerResponse?.videoDetails || {}
+        const microformat = playerResponse?.microformat?.playerMicroformatRenderer || {}
 
-        if (!title) {
-            title =
-                html.match(/<meta name="title" content="([^"]+)"/i)?.[1] ||
-                html.match(/"title":"([^"]+)"/)?.[1] ||
-                ''
-        }
+        const title = String(videoDetails.title || '').trim()
+        const author = String(videoDetails.author || microformat.ownerChannelName || '').trim()
+        const viewCount = String(videoDetails.viewCount || '').trim()
+        const lengthSeconds = String(videoDetails.lengthSeconds || '').trim()
+        const thumbnail =
+            String(microformat?.thumbnail?.thumbnails?.at?.(-1)?.url || '').trim() ||
+            String(videoDetails?.thumbnail?.thumbnails?.at?.(-1)?.url || '').trim()
 
-        if (!author) {
-            author =
-                html.match(/"ownerChannelName":"([^"]+)"/)?.[1] ||
-                html.match(/"author":"([^"]+)"/)?.[1] ||
-                ''
-        }
-
-        if (!viewCount) {
-            viewCount =
-                html.match(/itemprop="interactionCount"\s+content="(\d+)"/i)?.[1] ||
-                html.match(/"viewCount":"(\d+)"/)?.[1] ||
-                ''
-        }
-
-        if (!lengthSeconds) {
-            lengthSeconds = html.match(/"lengthSeconds":"(\d+)"/)?.[1] || ''
-        }
-
-        if (!thumbnail) {
-            thumbnail =
-                html.match(/<meta property="og:image" content="([^"]+)"/i)?.[1] ||
-                html.match(/"thumbnailUrl":"([^"]+)"/)?.[1] ||
-                ''
-        }
+        if (!title && !author && !viewCount && !lengthSeconds) return null
 
         return {
             title: title.replace(/\u0026/g, '&'),
@@ -206,13 +169,16 @@ export default {
                 views = watchMeta.views || views
             }
 
-            if ((!thumbUrl || channelName === '-' || durasi === '-') && title) {
+            if ((!thumbUrl || channelName === '-' || durasi === '-' || views === '-') && q) {
                 try {
-                    const results = await search(title, 1)
+                    const results = await search(q, 1)
                     const first = results?.[0]
                     if (first) {
+                        title = first.title || title
+                        channelName = first.channel || channelName
+                        durasi = first.duration || durasi
                         thumbUrl = first.thumbnail || thumbUrl
-                        if (views === '-') views = first.views || views
+                        views = first.views || views
                         if (published === '-') published = first.published || published
                     }
                 } catch {}
