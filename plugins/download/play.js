@@ -1,44 +1,6 @@
 import { yt1sdl } from '../../scrape/yt1s.js'
 import { search } from '../../scrape/ytsearch.js'
 import { getBuffer, toAudio } from '../../src/utils/converter.js'
-import { getRedis } from '../../src/database/redis.js'
-
-const extractVideoId = (value = '') => {
-    const text = String(value || '').trim()
-    const match = text.match(/(?:youtube\.com\/(?:watch\?.*?v=|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/i)
-    return match?.[1] || ''
-}
-
-const normalizeQuery = (value = '') =>
-    String(value || '')
-        .trim()
-        .toLowerCase()
-        .replace(/\s+/g, ' ')
-
-const getCacheKey = ({ query, videoId, isUrl }) =>
-    isUrl
-        ? `play:audio:video:${videoId}`
-        : `play:audio:query:${normalizeQuery(query)}`
-
-const getCachedAudio = async (redis, key) => {
-    if (!redis || !key) return null
-    try {
-        const raw = await redis.get(key)
-        if (!raw) return null
-        const parsed = JSON.parse(raw)
-        if (!parsed?.audioBase64) return null
-        return parsed
-    } catch {
-        return null
-    }
-}
-
-const setCachedAudio = async (redis, key, payload) => {
-    if (!redis || !key || !payload?.audioBase64) return
-    try {
-        await redis.setEx(key, 60 * 60 * 24, JSON.stringify(payload))
-    } catch {}
-}
 
 export default {
     name: 'play',
@@ -57,7 +19,6 @@ export default {
         const isUrl = q.includes('youtube.com') || q.includes('youtu.be')
         let url = q
         let metaFromSearch = null
-        let sourceId = ''
 
         if (!isUrl) {
             try {
@@ -67,55 +28,14 @@ export default {
                 }
                 metaFromSearch = res[0]
                 url = res[0].url
-                sourceId = String(res[0].id || extractVideoId(res[0].url)).trim()
             } catch {
                 return sock.sendMessage(jid, { text: '❌ Gagal mencari video.' }, { quoted: msg })
             }
         }
 
-        if (!sourceId) sourceId = extractVideoId(url)
-
         await react('⏳')
 
         try {
-            const redis = await getRedis()
-            const cacheKey = getCacheKey({
-                isUrl,
-                query: isUrl ? '' : q,
-                videoId: sourceId
-            })
-            const cached = await getCachedAudio(redis, cacheKey)
-
-            if (cached && String(cached.sourceId || '').trim() === sourceId) {
-                const audio = Buffer.from(cached.audioBase64, 'base64')
-                if (audio.length) {
-                    await sock.sendMessage(jid, {
-                        audio,
-                        mimetype: 'audio/mpeg',
-                        fileName: cached.fileName || `${cached.title || 'audio'}.mp3`,
-                        ptt: false,
-                        ...(cached.thumbnail || cached.sourceUrl ? {
-                            contextInfo: {
-                                externalAdReply: {
-                                    title: cached.title || 'YouTube Audio',
-                                    body: `${cached.channelName || '-'} • ${cached.duration || '-'}`,
-                                    ...(cached.thumbnail ? { thumbnailUrl: cached.thumbnail } : {}),
-                                    mediaUrl: cached.sourceUrl || url,
-                                    sourceUrl: cached.sourceUrl || url,
-                                    mediaType: 1,
-                                    showAdAttribution: false,
-                                    renderLargerThumbnail: true
-                                }
-                            }
-                        } : {})
-                    }, { quoted: msg })
-
-                    useLimit()
-                    await react('✅')
-                    return
-                }
-            }
-
             const res = await yt1sdl(url, { type: 'audio', audioQuality: '128' })
             const audioInfo = Array.isArray(res?.audio)
                 ? (res.audio.find((x) => x?.url) || null)
@@ -153,17 +73,6 @@ export default {
                     if (Buffer.isBuffer(tb) && tb.length) thumbBuffer = tb
                 } catch {}
             }
-
-            await setCachedAudio(redis, cacheKey, {
-                sourceId,
-                title: String(res?.title || metaFromSearch?.title || 'YouTube Audio').trim(),
-                channelName,
-                duration: durasi,
-                thumbnail: thumbUrl || String(metaFromSearch?.thumbnail || '').trim(),
-                sourceUrl: url,
-                fileName: `${res.title}.mp3`,
-                audioBase64: audio.toString('base64')
-            })
 
             await sock.sendMessage(jid, {
                 audio,
