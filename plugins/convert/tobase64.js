@@ -15,7 +15,7 @@ export default {
 
         if (!input) {
             return sock.sendMessage(jid, {
-                text: `Contoh penggunaan:\n- ${prefix + command} halo dunia`
+                text: `Contoh penggunaan:\n- ${prefix + command} halo`
             }, { quoted: msg })
         }
 

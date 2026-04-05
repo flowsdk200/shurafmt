@@ -17,7 +17,7 @@ export default {
 
         if (!isQuoted || !quotedMsg || !quotedType) {
             return sock.sendMessage(jid, {
-                text: `❌ Gunakan dengan cara reply audio/video dengan caption ${prefix + command}.`
+                text: `❌ Reply audio/video dengan caption ${prefix + command}.`
             }, { quoted: msg })
         }
 

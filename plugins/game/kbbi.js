@@ -4,7 +4,7 @@ import kbbiDb from '../../src/database/kbbi.js'
 import { getTargetJid } from '../../src/utils/group.js'
 import { normalizeJid } from '../../src/utils/jid.js'
 
-const LOBBY_TIMEOUT_MS = 3 * 60 * 1000
+const LOBBY_TIMEOUT_MS = 10 * 60 * 1000
 const TURN_TIMEOUT_SEC = 25
 const SUDDEN_TIMEOUT_SEC = 12
 const MAX_STRIKE = 3
@@ -400,7 +400,7 @@ export default {
             kbbiSession.setLobbyTimer(created, LOBBY_TIMEOUT_MS, async (sessionId) => {
                 const row = kbbiSession.getById(sessionId)
                 if (!row || row.status !== 'lobi') return
-                await cancelLobby(row, 'tidak diterima dalam 3 menit')
+                await cancelLobby(row, 'tidak diterima dalam 10 menit')
             })
 
             useLimit()
@@ -411,7 +411,7 @@ export default {
                     `LOBBY KBBI DUEL ${modeLabel(mode)}\n` +
                     `• Pembuat: ${mentionTag(senderId)}\n` +
                     `• Lawan: ${mentionTag(target)}\n\n` +
-                    `${mentionTag(target)} ketik ${prefix + command} acc atau ${prefix + command} gas untuk mulai. batas waktu 3 menit`,
+                    `${mentionTag(target)} ketik ${prefix + command} acc atau ${prefix + command} gas untuk mulai. batas waktu 10 menit`,
                 mentions: [senderId, target]
             }, { quoted: msg })
         }
