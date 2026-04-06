@@ -2,7 +2,7 @@ import { buildResultText, buildUsage, parseExpression } from './_math.js'
 
 export default {
     name: 'kali',
-    aliases: ['x'],
+    aliases: [],
     description: 'Hitung perkalian cepat',
     execute: async ({ sock, msg, text, prefix, command }) => {
         const jid = msg.key.remoteJid
