@@ -1,15 +1,14 @@
 import axios from 'axios'
-import { createHash } from 'crypto'
 
 const OEMBED_URL = 'https://www.youtube.com/oembed'
 const TIMEOUT = 60000
 const YT_TIMEOUT = 15000
 const YT1S_ORIGIN = 'https://embed.dlsrv.online'
 const YT1S_REFERER = 'https://embed.dlsrv.online/'
-const YT1S_API = 'https://embed.dlsrv.online/api'
-const YT1S_SIGNATURE_SECRET = 'bq7b3BBxmjR4YdrJFDFPGkDvYPeeDdHWZ+Bq8lYImeRY'
+const YT1S_SESSION_ENDPOINT = '/api/session-token'
 
 const client = axios.create({
+  baseURL: YT1S_ORIGIN,
   timeout: TIMEOUT,
   headers: {
     'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36',
@@ -38,26 +37,75 @@ function pickQuality(available, requested, defaults) {
   return available[0] || ''
 }
 
-function buildApiHeaders() {
-  const timestamp = Date.now().toString()
-  const signature = createHash('sha256')
-    .update(`${timestamp}${YT1S_SIGNATURE_SECRET}`)
-    .digest('hex')
+let sessionTokenCache = {
+  token: '',
+  expiresAt: 0
+}
 
-  return {
-    'Content-Type': 'application/json',
-    'x-app-timestamp': timestamp,
-    'x-app-signature': signature
+function decodeTokenExpMs(jwt = '') {
+  try {
+    const parts = String(jwt || '').split('.')
+    if (parts.length < 2) return 0
+    const payloadRaw = Buffer.from(parts[1], 'base64url').toString('utf8')
+    const payload = JSON.parse(payloadRaw)
+    const expSec = Number(payload?.exp || 0)
+    if (!Number.isFinite(expSec) || expSec <= 0) return 0
+    return expSec * 1000
+  } catch {
+    return 0
   }
 }
 
-async function getInfo(videoId, format) {
+async function getSessionToken(forceRefresh = false) {
+  const now = Date.now()
+  if (!forceRefresh && sessionTokenCache.token && sessionTokenCache.expiresAt > now + 5000) {
+    return sessionTokenCache.token
+  }
+
+  const { data } = await client.get(YT1S_SESSION_ENDPOINT)
+  const token = String(data?.token || '').trim()
+  if (!token) throw new Error('Gagal mendapatkan session token')
+
+  const tokenExpMs = decodeTokenExpMs(token)
+  sessionTokenCache = {
+    token,
+    expiresAt: tokenExpMs || (Date.now() + 8 * 60 * 1000)
+  }
+  return token
+}
+
+function isAuthError(err) {
+  const status = Number(err?.response?.status || 0)
+  return status === 401 || status === 403
+}
+
+function withSessionHeaders(token) {
+  return {
+    'Content-Type': 'application/json',
+    'x-session-token': token
+  }
+}
+
+async function postWithSession(path, payload) {
+  let token = await getSessionToken(false)
   try {
-    const { data } = await client.post(
-      `${YT1S_API}/info`,
-      { videoId },
-      { headers: buildApiHeaders() }
-    );
+    const { data } = await client.post(path, payload, {
+      headers: withSessionHeaders(token)
+    })
+    return data
+  } catch (err) {
+    if (!isAuthError(err)) throw err
+    token = await getSessionToken(true)
+    const { data } = await client.post(path, payload, {
+      headers: withSessionHeaders(token)
+    })
+    return data
+  }
+}
+
+async function getInfo(videoId) {
+  try {
+    const data = await postWithSession('/api/info', { videoId })
     if (!data || data.status !== 'info' || !data.info) {
       throw new Error(data?.error || 'Gagal mengambil data')
     }
@@ -72,14 +120,12 @@ async function getInfo(videoId, format) {
 
 async function getDownload(videoId, format, quality) {
   try {
-    const endpoint = format === 'mp4' ? 'mp4' : 'mp3'
-    const { data } = await client.post(`${YT1S_API}/download/${endpoint}`, {
+    const endpoint = format === 'mp4' ? '/api/download/mp4' : '/api/download/mp3'
+    const data = await postWithSession(endpoint, {
       videoId,
       format,
       quality
-    }, {
-      headers: buildApiHeaders()
-    });
+    })
     if (!data || data.status !== 'tunnel' || !data.url) {
       throw new Error(data?.error || 'Gagal mendapatkan link download')
     }
@@ -137,7 +183,7 @@ async function yt1sdl(youtubeUrl, opts = {}) {
   const wantAudio = type !== 'video'
   const wantVideo = type !== 'audio'
 
-  const baseInfo = await getInfo(videoId, 'both')
+  const baseInfo = await getInfo(videoId)
   const formats = Array.isArray(baseInfo?.formats) ? baseInfo.formats : []
 
   let title = baseInfo?.title || ''
