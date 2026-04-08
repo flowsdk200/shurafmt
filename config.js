@@ -27,6 +27,8 @@ const config = {
         idLength: 6
     },
     weatherApiKey: '0978f91adc6244088a9181544260603',
+    ahsanlabsBaseUrl: 'http://api.ahsanlabs.online',
+    ahsanlabsApiKey: 'GYoVnnRgs9UI1BvSqPra_5U8lEJMrg9LcxXSR5Ta7k4',
     channelJid: '120363387535716103@newsletter',
     channelLink: 'https://whatsapp.com/channel/0029Vb8IWc3FSAsy4xaX991n',
     scriptUrl: 'https://github.com/yemo-dev/biohazard-botz',
