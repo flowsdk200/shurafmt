@@ -8,7 +8,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 const getSessionCookie = async () => {
     const response = await gotScraping({
         url: 'https://savetik.co/en2',
-        timeout: { request: 20000 },
+        timeout: { request: 25000 },
         headers: {
             'accept-language': 'en-US,en;q=0.9'
         }
@@ -72,7 +72,7 @@ async function searchSaveTik(url) {
                 method: 'POST',
                 body,
                 throwHttpErrors: false,
-                timeout: { request: 30000 },
+                timeout: { request: 25000 },
                 headers: {
                     'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
                     origin: 'https://savetik.co',

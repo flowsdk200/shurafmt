@@ -1,6 +1,31 @@
 import axios from 'axios'
 import { tikdownloader } from '../../scrape/savetik.js'
+import { tiktok2 } from '../../scrape/tiktok.js'
 import { toAudio } from '../../src/utils/converter.js'
+
+const normalizeDlUrl = (value = '') => {
+    const raw = String(value || '').trim()
+    if (!raw) return ''
+    if (/^https?:\/\//i.test(raw)) return raw
+    if (raw.startsWith('//')) return `https:${raw}`
+    if (raw.startsWith('/')) return `https://snaptik.cx${raw}`
+    return raw
+}
+
+const normalizeTikResult = (result = {}) => {
+    const normalized = { ...result }
+    if (normalized.video) normalized.video = normalizeDlUrl(normalized.video)
+    if (normalized.audio) normalized.audio = normalizeDlUrl(normalized.audio)
+    if (!normalized.audio && normalized.audioUrl) normalized.audio = normalized.audioUrl
+    if (normalized.audio) normalized.audio = normalizeDlUrl(normalized.audio)
+    if (Array.isArray(normalized.images)) {
+        normalized.images = normalized.images.map((item, index) => ({
+            index: Number(item?.index || index + 1),
+            url: normalizeDlUrl(item?.url)
+        })).filter((item) => item.url)
+    }
+    return normalized
+}
 
 export default {
     name: 'tiktok',
@@ -19,7 +44,30 @@ export default {
         await react('⏳')
 
         try {
-            const result = await tikdownloader(url)
+            let result
+            let saveTikError = null
+
+            try {
+                result = normalizeTikResult(await tikdownloader(url))
+            } catch (error) {
+                saveTikError = error
+            }
+
+            if (!result) {
+                const fallbackMode = String(command || '').toLowerCase().includes('mp3')
+                    ? 'mp3'
+                    : String(command || '').toLowerCase().includes('slide')
+                        ? 'slide'
+                        : ''
+
+                try {
+                    result = normalizeTikResult(await tiktok2(url, fallbackMode ? { mode: fallbackMode } : {}))
+                } catch (fallbackError) {
+                    const primaryMsg = saveTikError?.message || 'SaveTik gagal'
+                    throw new Error(`${primaryMsg}; fallback gagal: ${fallbackError.message}`)
+                }
+            }
+
             const author = String(result.author || '-').trim() || '-'
             const captionText = String(result.caption || '').trim()
             const caption = author !== '-' && captionText
