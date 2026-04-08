@@ -6,18 +6,23 @@ const cleanText = (value = '') => String(value || '').replace(/\s+/g, ' ').trim(
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 const getSessionCookie = async () => {
-    const response = await gotScraping({
-        url: 'https://savetik.co/en2',
-        timeout: { request: 25000 },
-        headers: {
-            'accept-language': 'en-US,en;q=0.9'
-        }
-    })
+    try {
+        const response = await gotScraping({
+            url: 'https://savetik.co/en2',
+            timeout: { request: 20000 },
+            throwHttpErrors: false,
+            headers: {
+                'accept-language': 'en-US,en;q=0.9'
+            }
+        })
 
-    return (response.headers['set-cookie'] || [])
-        .map((value) => String(value || '').split(';')[0])
-        .filter(Boolean)
-        .join('; ')
+        return (response.headers['set-cookie'] || [])
+            .map((value) => String(value || '').split(';')[0])
+            .filter(Boolean)
+            .join('; ')
+    } catch {
+        return ''
+    }
 }
 
 const decodeHtml = (value = '') => String(value || '')
@@ -58,8 +63,6 @@ async function searchSaveTik(url) {
 
     for (const waitMs of attempts) {
         if (waitMs) await sleep(waitMs)
-
-        const cookie = await getSessionCookie()
         const body = new URLSearchParams({
             q: input,
             lang: 'en',
@@ -67,12 +70,13 @@ async function searchSaveTik(url) {
         }).toString()
 
         try {
+            const cookie = await getSessionCookie()
             const response = await gotScraping({
                 url: 'https://savetik.co/api/ajaxSearch',
                 method: 'POST',
                 body,
                 throwHttpErrors: false,
-                timeout: { request: 25000 },
+                timeout: { request: 20000 },
                 headers: {
                     'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
                     origin: 'https://savetik.co',
@@ -101,14 +105,25 @@ async function searchSaveTik(url) {
         } catch (error) {
             lastError = error
             const status = error?.response?.statusCode || error?.response?.status
+            const message = String(error?.message || '').toLowerCase()
+            const code = String(error?.code || '').toUpperCase()
             const isRateLimit = status === 429 || error?.message === 'RATE_LIMIT'
-            if (!isRateLimit) break
+            const isTransientNetwork =
+                message.includes('timeout') ||
+                message.includes('timed out') ||
+                ['ETIMEDOUT', 'ESOCKETTIMEDOUT', 'ECONNRESET', 'EAI_AGAIN', 'ECONNREFUSED', 'ENOTFOUND'].includes(code)
+
+            if (!isRateLimit && !isTransientNetwork) break
         }
     }
 
     const status = lastError?.response?.statusCode || lastError?.response?.status
+    const lastMessage = String(lastError?.message || '').toLowerCase()
     if (status === 429 || lastError?.message === 'RATE_LIMIT') {
         throw new Error('SaveTik terkena rate limit, coba lagi sebentar')
+    }
+    if (lastMessage.includes('timeout') || lastMessage.includes('timed out')) {
+        throw new Error('SaveTik timeout, coba lagi sebentar')
     }
 
     throw new Error(lastError?.message || 'Gagal mengambil data SaveTik')
