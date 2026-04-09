@@ -46,7 +46,13 @@ const toDoc = (raw = {}) => ({
     lastNotifiedStatus: normalizeStatus(raw.lastNotifiedStatus || ''),
     lastNotifiedAt: raw.lastNotifiedAt == null ? null : toNum(raw.lastNotifiedAt, 0),
     loginSuccessNotified: raw.loginSuccessNotified === true,
-    pollErrorCount: Math.max(0, toNum(raw.pollErrorCount, 0))
+    pollErrorCount: Math.max(0, toNum(raw.pollErrorCount, 0)),
+    chargedUserJid: clean(raw.chargedUserJid),
+    coinCost: Math.max(0, toNum(raw.coinCost, 0)),
+    coinsReserved: raw.coinsReserved === true,
+    coinsSettled: raw.coinsSettled === true,
+    coinSettledAt: raw.coinSettledAt == null ? null : toNum(raw.coinSettledAt, 0),
+    coinSettlementStatus: clean(raw.coinSettlementStatus)
 })
 
 const parseDoc = (raw = '') => {
@@ -302,6 +308,41 @@ class GhsVerifyJobsDb {
             loginSuccessNotified: true,
             updatedAt: Date.now()
         })
+    }
+
+    async setCoinReservation(jobId, { chargedUserJid = '', coinCost = 0, coinsReserved = false } = {}) {
+        await this._ensure()
+        const existing = await this._load(jobId)
+        if (!existing) return null
+
+        const updated = {
+            ...existing,
+            chargedUserJid: clean(chargedUserJid),
+            coinCost: Math.max(0, toNum(coinCost, 0)),
+            coinsReserved: coinsReserved === true,
+            coinsSettled: false,
+            coinSettledAt: null,
+            coinSettlementStatus: '',
+            updatedAt: Date.now()
+        }
+
+        return this._save(updated)
+    }
+
+    async markCoinsSettled(jobId, status = '') {
+        await this._ensure()
+        const existing = await this._load(jobId)
+        if (!existing) return null
+
+        const updated = {
+            ...existing,
+            coinsSettled: true,
+            coinSettledAt: Date.now(),
+            coinSettlementStatus: clean(status),
+            updatedAt: Date.now()
+        }
+
+        return this._save(updated)
     }
 }
 

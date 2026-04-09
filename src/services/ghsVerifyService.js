@@ -2,6 +2,7 @@ import axios from 'axios'
 import config from '../../config.js'
 import logger from '../utils/logger.js'
 import ghsVerifyJobsDb from '../database/ghsVerifyJobs.js'
+import usersDb from '../database/users.js'
 
 const REQUEST_TIMEOUT = 60 * 1000
 const POLL_INTERVAL_MS = 60 * 1000
@@ -10,6 +11,7 @@ const POLL_ERROR_THRESHOLD = 5
 const FAST_LOGIN_POLL_INTERVAL_MS = 1000
 const FAST_LOGIN_POLL_TIMEOUT_MS = 90000
 const FAST_LOGIN_ERROR_THRESHOLD = 3
+const VERIFICATION_COIN_COST = 20
 
 const TERMINAL_SUCCESS = new Set(['success', 'succeeded', 'approved', 'done', 'completed', 'verified'])
 const TERMINAL_FAILED = new Set(['failed', 'failure', 'error', 'invalid', 'rejected', 'expired', 'cancelled', 'canceled', 'timeout'])
@@ -168,6 +170,10 @@ class GhsVerifyService {
         this._sock = sock || null
     }
 
+    getVerificationCost() {
+        return VERIFICATION_COIN_COST
+    }
+
     startWorker(sock) {
         if (sock) this.setSock(sock)
         if (this._workerTimer) return
@@ -248,7 +254,18 @@ class GhsVerifyService {
         return { payload, jobId, status, active, savedJob }
     }
 
-    async submitVerificationFlow({ email, password, otp, role = 'student', chatJid, requesterJid, requesterName = '' }) {
+    async submitVerificationFlow({
+        email,
+        password,
+        otp,
+        role = 'student',
+        chatJid,
+        requesterJid,
+        requesterName = '',
+        chargedUserJid = '',
+        coinCost = 0,
+        coinsReserved = false
+    }) {
         try {
             await ghsVerifyJobsDb.deactivateActiveByChatEmail(chatJid, email).catch(() => {})
 
@@ -262,21 +279,74 @@ class GhsVerifyService {
                 requesterName
             })
 
-            await this._runFastLoginPolling(
-                result.savedJob || {
-                    jobId: result.jobId,
-                    status: result.status,
-                    chatJid,
-                    email,
-                    loginSuccessNotified: false,
-                    pollErrorCount: 0
+            let jobForFlow = result.savedJob || {
+                jobId: result.jobId,
+                status: result.status,
+                chatJid,
+                email,
+                loginSuccessNotified: false,
+                pollErrorCount: 0
+            }
+
+            if (coinsReserved === true && clean(chargedUserJid) && Number(coinCost) > 0) {
+                const reservedJob = await ghsVerifyJobsDb.setCoinReservation(result.jobId, {
+                    chargedUserJid: clean(chargedUserJid),
+                    coinCost: Math.max(0, Number(coinCost) || 0),
+                    coinsReserved: true
+                })
+
+                if (!reservedJob) {
+                    throw new Error('gagal menyimpan reservasi coins')
                 }
-            )
+                result.savedJob = reservedJob
+                jobForFlow = reservedJob
+            }
+
+            await this._runFastLoginPolling(jobForFlow)
 
             return result
         } catch (err) {
+            if (coinsReserved === true && clean(chargedUserJid) && Number(coinCost) > 0) {
+                try {
+                    usersDb.addCoins(clean(chargedUserJid), Math.max(0, Number(coinCost) || 0))
+                } catch {}
+            }
             logger.warn(`[GHS] submit verification gagal: ${clean(err?.message || err)}`)
             return null
+        }
+    }
+
+    async _settleCoinsForJob(job, status) {
+        if (!job?.jobId) return null
+        if (job.coinsSettled === true) return job
+
+        const userJid = clean(job.chargedUserJid)
+        const coinCost = Math.max(0, Number(job.coinCost) || 0)
+        if (!userJid || coinCost <= 0) {
+            const marked = await ghsVerifyJobsDb.markCoinsSettled(job.jobId, normalizeStatus(status)).catch(() => null)
+            return marked || { ...job, coinsSettled: true }
+        }
+
+        const normalized = normalizeStatus(status)
+        const approved = TERMINAL_SUCCESS.has(normalized)
+
+        try {
+            if (approved) {
+                usersDb.incrementGhsApproved(userJid)
+            } else {
+                if (job.coinsReserved === true) usersDb.addCoins(userJid, coinCost)
+                usersDb.incrementGhsFailed(userJid)
+            }
+        } catch (err) {
+            logger.warn(`[GHS] settle coins gagal untuk ${job.jobId}: ${clean(err?.message || err)}`)
+        }
+
+        const marked = await ghsVerifyJobsDb.markCoinsSettled(job.jobId, normalized).catch(() => null)
+        return marked || {
+            ...job,
+            coinsSettled: true,
+            coinSettlementStatus: normalized,
+            coinSettledAt: Date.now()
         }
     }
 
@@ -312,6 +382,7 @@ class GhsVerifyService {
                     })
 
                     if (updated) currentJob = updated
+                    currentJob = (await this._settleCoinsForJob(currentJob, status).catch(() => currentJob)) || currentJob
 
                     await this._sendProgressMessage({
                         chatJid: currentJob.chatJid,
@@ -415,10 +486,11 @@ class GhsVerifyService {
                     errorMessage: '',
                     pollErrorCount: 0
                 })
+                const settled = await this._settleCoinsForJob(updated || job, status).catch(() => updated || job)
 
                 await this._sendProgressMessage({
-                    chatJid: updated?.chatJid || job.chatJid,
-                    email: updated?.email || job.email,
+                    chatJid: settled?.chatJid || job.chatJid,
+                    email: settled?.email || job.email,
                     statusText: 'gagal login...',
                     infoText: trimLoginFailPrefix(statusMessage || '-')
                 })
@@ -448,9 +520,10 @@ class GhsVerifyService {
             }
 
             if (terminal && notifyTerminal && normalizeStatus(updated.lastNotifiedStatus) !== status) {
+                const settledJob = await this._settleCoinsForJob(updated, status).catch(() => updated)
                 const sent = await this._sendTerminalMessage(updated, check.payload, status)
                 if (sent) {
-                    await ghsVerifyJobsDb.markNotified(updated.jobId, status).catch(() => {})
+                    await ghsVerifyJobsDb.markNotified(settledJob?.jobId || updated.jobId, status).catch(() => {})
                 }
             }
         } catch (err) {
@@ -463,19 +536,20 @@ class GhsVerifyService {
             const mustFail = notFound || nextErrCount >= POLL_ERROR_THRESHOLD
 
             if (mustFail) {
-                const sent = await this._sendTerminalMessage(
-                    { chatJid: job.chatJid, email: job.email },
-                    { message },
-                    'failed'
-                )
-
-                await ghsVerifyJobsDb.updateFromJobCheck(job.jobId, {
+                const failedJob = await ghsVerifyJobsDb.updateFromJobCheck(job.jobId, {
                     status: 'failed',
                     active: false,
                     lastResponse: null,
                     errorMessage: message,
                     pollErrorCount: nextErrCount
                 }).catch(() => {})
+                await this._settleCoinsForJob(failedJob || job, 'failed').catch(() => {})
+
+                const sent = await this._sendTerminalMessage(
+                    { chatJid: job.chatJid, email: job.email },
+                    { message },
+                    'failed'
+                )
 
                 if (sent) {
                     await ghsVerifyJobsDb.markNotified(job.jobId, 'failed').catch(() => {})

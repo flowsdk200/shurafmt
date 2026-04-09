@@ -22,7 +22,8 @@ class UserDatabase {
         for (const user of Object.values(this._data)) {
             const nextJoin = this._toWibDateTime(user.joinDate)
             const nextSeen = this._toWibDateTime(user.lastSeen)
-            if (nextJoin !== user.joinDate || nextSeen !== user.lastSeen) {
+            const hadCoins = this._ensureCoinsAndGhsStats(user.jid, user)
+            if (nextJoin !== user.joinDate || nextSeen !== user.lastSeen || hadCoins) {
                 user.joinDate = nextJoin
                 user.lastSeen = nextSeen
                 changed += 1
@@ -32,6 +33,44 @@ class UserDatabase {
 
         this._initialized = true
         logger.ready(`Loaded ${docs.length} users from MongoDB${changed ? ` (normalized ${changed})` : ''}`)
+    }
+
+    _jidToNumber(jid = '') {
+        return String(jid || '').split('@')[0].replace(/[^0-9]/g, '')
+    }
+
+    _isConfigOwnerNumber(jid = '') {
+        const num = this._jidToNumber(jid)
+        if (!num) return false
+        return (config.ownerNumbers || []).map((x) => String(x || '').replace(/[^0-9]/g, '')).includes(num)
+    }
+
+    _defaultCoinsFor(jid = '', user = null) {
+        if (this._isConfigOwnerNumber(jid) || user?.owner === true) return 5000
+        return 10
+    }
+
+    _ensureCoinsAndGhsStats(jid = '', user = null) {
+        const doc = user || this._data[jid]
+        if (!doc) return false
+
+        let changed = false
+        if (!Number.isFinite(Number(doc.coins))) {
+            doc.coins = this._defaultCoinsFor(jid || doc.jid, doc)
+            changed = true
+        }
+
+        if (!Number.isFinite(Number(doc.ghsApproved))) {
+            doc.ghsApproved = 0
+            changed = true
+        }
+
+        if (!Number.isFinite(Number(doc.ghsFailed))) {
+            doc.ghsFailed = 0
+            changed = true
+        }
+
+        return changed
     }
 
     _toWibDateTime(input = new Date()) {
@@ -68,6 +107,7 @@ class UserDatabase {
 
     getUser(jid, name = '') {
         if (!this._data[jid]) {
+            const defaultCoins = this._defaultCoinsFor(jid)
             this._data[jid] = {
                 jid,
                 name: name || jid.split('@')[0],
@@ -80,10 +120,14 @@ class UserDatabase {
                 owner: false,
                 limit: config.limits.free,
                 limitMax: config.limits.free,
-                limitDate: ''
+                limitDate: '',
+                coins: defaultCoins,
+                ghsApproved: 0,
+                ghsFailed: 0
             }
             this._persistUser(jid)
         }
+        this._ensureCoinsAndGhsStats(jid, this._data[jid])
         return this._data[jid]
     }
 
@@ -127,7 +171,14 @@ class UserDatabase {
         return Number.isNaN(d.getTime()) ? null : d
     }
 
-    addOwner(jid) { return this.updateUser(jid, { owner: true }) }
+    addOwner(jid) {
+        const user = this.getUser(jid)
+        user.owner = true
+        const currentCoins = Number(user.coins)
+        user.coins = Number.isFinite(currentCoins) ? Math.max(currentCoins, 5000) : 5000
+        this._persistUser(jid)
+        return user
+    }
     removeOwner(jid) { return this.updateUser(jid, { owner: false }) }
 
     getBanExpiry(jid) {
@@ -268,6 +319,58 @@ class UserDatabase {
         if (user.limit > 0) {
             user.limit -= 1
             this._persistUser(jid)
+        }
+    }
+
+    getCoins(jid) {
+        const user = this.getUser(jid)
+        this._ensureCoinsAndGhsStats(jid, user)
+        return Math.max(0, Number(user.coins) || 0)
+    }
+
+    addCoins(jid, amount) {
+        const user = this.getUser(jid)
+        this._ensureCoinsAndGhsStats(jid, user)
+        const delta = Math.max(0, Number(amount) || 0)
+        user.coins = Math.max(0, Number(user.coins) || 0) + delta
+        this._persistUser(jid)
+        return user
+    }
+
+    deductCoins(jid, amount) {
+        const user = this.getUser(jid)
+        this._ensureCoinsAndGhsStats(jid, user)
+        const delta = Math.max(0, Number(amount) || 0)
+        const current = Math.max(0, Number(user.coins) || 0)
+        if (delta <= 0) return user
+        if (current < delta) return null
+        user.coins = current - delta
+        this._persistUser(jid)
+        return user
+    }
+
+    incrementGhsApproved(jid, by = 1) {
+        const user = this.getUser(jid)
+        this._ensureCoinsAndGhsStats(jid, user)
+        user.ghsApproved = Math.max(0, Number(user.ghsApproved) || 0) + Math.max(1, Number(by) || 1)
+        this._persistUser(jid)
+        return user
+    }
+
+    incrementGhsFailed(jid, by = 1) {
+        const user = this.getUser(jid)
+        this._ensureCoinsAndGhsStats(jid, user)
+        user.ghsFailed = Math.max(0, Number(user.ghsFailed) || 0) + Math.max(1, Number(by) || 1)
+        this._persistUser(jid)
+        return user
+    }
+
+    getGhsStats(jid) {
+        const user = this.getUser(jid)
+        this._ensureCoinsAndGhsStats(jid, user)
+        return {
+            approved: Math.max(0, Number(user.ghsApproved) || 0),
+            failed: Math.max(0, Number(user.ghsFailed) || 0)
         }
     }
 }

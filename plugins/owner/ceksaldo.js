@@ -48,7 +48,7 @@ export default {
             useLimit()
             await react('✅')
             await sock.sendMessage(jid, {
-                text: `*SALDO API GHS*\n- Saldo API: ${credits == null ? '-' : credits}`
+                text: `*SALDO API GHS: ${credits == null ? '-' : credits}*`
             }, { quoted: msg })
         } catch (err) {
             logger.warn(`[GHS] cek saldo gagal: ${err?.message || err}`)

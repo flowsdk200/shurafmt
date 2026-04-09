@@ -1,0 +1,6 @@
+--2026-04-09 08:41:01--  https://storage.filebin.net/filebin/5d78d6185597f6cae7a7c145696101d6f4f7816642c6fa100a87d0d3b956a9d1?X-Amz-Algorithm=AWS4-HMAC-SHA256
+Resolving storage.filebin.net (storage.filebin.net)... 135.181.128.167, 2a01:4f9:4b:1f95::2
+Connecting to storage.filebin.net (storage.filebin.net)|135.181.128.167|:443... connected.
+HTTP request sent, awaiting response... 403 Forbidden
+2026-04-09 08:41:02 ERROR 403: Forbidden.
+

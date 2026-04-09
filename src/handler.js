@@ -857,7 +857,7 @@ export const handleMessage = async (sock, m) => {
                         text: 'Khusus premium!'
                     }, { quoted: msg })
                 }
-                if (!usersDb.hasLimit(sender)) {
+                if (!plugin.ignoreLimit && !usersDb.hasLimit(sender)) {
                     return sock.sendMessage(msg.key.remoteJid, { text: LIMIT_MSG }, { quoted: msg })
                 }
                 await plugin.execute({
@@ -958,7 +958,7 @@ export const handleMessage = async (sock, m) => {
             }
 
             /** Limit check **/
-            if (!usersDb.hasLimit(sender)) {
+            if (!command.ignoreLimit && !usersDb.hasLimit(sender)) {
                 return sock.sendMessage(msg.key.remoteJid, { text: LIMIT_MSG }, { quoted: msg })
             }
 

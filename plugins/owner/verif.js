@@ -1,6 +1,21 @@
 import ghsVerifyService from '../../src/services/ghsVerifyService.js'
+import config from '../../config.js'
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
 
 const clean = (value) => String(value || '').trim()
+const toMentionTag = (jid = '') => `@${String(jid || '').split('@')[0]}`
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const LOCAL_DASHBOARD_IMAGE = path.resolve(__dirname, '../../assets/ghs.jpg')
+
+const getDashboardImage = () => {
+    try {
+        const stat = fs.statSync(LOCAL_DASHBOARD_IMAGE)
+        if (stat.size > 0) return fs.readFileSync(LOCAL_DASHBOARD_IMAGE)
+    } catch {}
+    return config.thumb
+}
 
 const parseVerifyInput = (input = '') => {
     const parts = String(input)
@@ -21,20 +36,52 @@ const parseVerifyInput = (input = '') => {
 
 export default {
     name: 'verif',
-    aliases: ['verifghs', 'ghs'],
+    aliases: ['ghs'],
     description: 'Verifikasi GHS via email,password,otp (role student)',
-    ownerOnly: true,
-    execute: async ({ sock, msg, text, sender, pushName, react, useLimit }) => {
+    ownerOnly: false,
+    ignoreLimit: true,
+    execute: async ({ sock, msg, text, sender, pushName, prefix, command, react, usersDb }) => {
         const jid = msg.key.remoteJid
         const parsed = parseVerifyInput(text)
+        const ownerNumber = String((config.ownerNumbers || [])[0] || '').replace(/[^0-9]/g, '')
+        const ownerJid = ownerNumber ? `${ownerNumber}@s.whatsapp.net` : ''
+        const verifyCost = ghsVerifyService.getVerificationCost()
+        const userStats = usersDb.getGhsStats(sender)
+        const coins = usersDb.getCoins(sender)
+        const dashboardText = [
+            `*GITHUB STUDENT DEVELOPER PACK VERIFICATION*`,
+            '',
+            '*Your dashboard*',
+            `- Users: ${toMentionTag(sender)}`,
+            `- Coins: ${coins}`,
+            `- Verifications: ${userStats.approved}`,
+            `- Failed: ${userStats.failed}`,
+            '',
+            '*Example usage*',
+            `- ${prefix + command} emailkamu@gmail.com, password, otp`,
+            '',
+            '*Requirements*',
+            '- 2FA enabled (authenticator app)',
+            '- Account at least 3 days old',
+            `- Verification costs student → ${verifyCost} coins`,
+            '',
+            'Coins charged only on approval. rejected = free.'
+        ].join('\n')
 
         if (!parsed) {
             return sock.sendMessage(jid, {
-                text:
-                    'Cara penggunaan:\n' +
-                    '- .verif email, password, otp\n\n' +
-                    'Contoh penggunaan:\n' +
-                    '- .verif emailgithubmu@gmail.com, password123, 459821'
+                image: getDashboardImage(),
+                caption: dashboardText,
+                mentions: [sender]
+            }, { quoted: msg })
+        }
+
+        const reservedUser = usersDb.deductCoins(sender, verifyCost)
+        if (!reservedUser) {
+            const noCoinText = `coins kamu gak cukup butuh ${verifyCost} coins untuk verfikasi. chat owner ${ownerJid ? toMentionTag(ownerJid) : '-'}.`
+            return sock.sendMessage(jid, {
+                text: noCoinText,
+                mentions: ownerJid ? [ownerJid] : []
             }, { quoted: msg })
         }
 
@@ -48,8 +95,12 @@ export default {
             '- Info: authenticating with github...'
         ].join('\n')
 
-        await sock.sendMessage(jid, { text: initText }, { quoted: msg })
-        useLimit()
+        try {
+            await sock.sendMessage(jid, { text: initText }, { quoted: msg })
+        } catch (err) {
+            usersDb.addCoins(sender, verifyCost)
+            throw err
+        }
         await react('✅')
 
         void ghsVerifyService.submitVerificationFlow({
@@ -59,7 +110,10 @@ export default {
             role: 'student',
             chatJid: jid,
             requesterJid: sender,
-            requesterName: clean(pushName)
+            requesterName: clean(pushName),
+            chargedUserJid: sender,
+            coinCost: verifyCost,
+            coinsReserved: true
         })
     }
 }
