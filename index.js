@@ -14,11 +14,9 @@ import usersDb from './src/database/users.js'
 import groupsDb from './src/database/groups.js'
 import confessDb from './src/database/confess.js'
 import settingsDb from './src/database/settings.js'
-import ghsVerifyJobsDb from './src/database/ghsVerifyJobs.js'
 import { closeMongo } from './src/database/mongo.js'
 import { sendGreetingMessage } from './src/utils/greetings.js'
 import { normalizeJid } from './src/utils/jid.js'
-import ghsVerifyService from './src/services/ghsVerifyService.js'
 
 /** Simple readline interface for interactive pairing code request **/
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
@@ -76,7 +74,6 @@ async function connectToWhatsApp() {
     activeSock = sock
     sock.autoRead = config.autoRead !== false
     sock.public = !config.selfMode
-    ghsVerifyService.startWorker(sock)
 
     /** Disable custom group metadata cache to avoid stale admin checks on deployment env **/
     sock._groupCache = null
@@ -136,8 +133,6 @@ async function connectToWhatsApp() {
             }
         } else if (connection === 'open') {
             logger.ready('Connected to WhatsApp via shurainc baileys socket!')
-            ghsVerifyService.setSock(sock)
-            void ghsVerifyService.runWorkerTick()
         }
     })
 
@@ -260,7 +255,6 @@ async function start() {
     await groupsDb.init()
     await confessDb.init()
     await settingsDb.init()
-    await ghsVerifyJobsDb.init()
     await loadPlugins()
     await connectToWhatsApp()
 }

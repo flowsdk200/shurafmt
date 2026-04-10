@@ -1,4 +1,4 @@
-import ghsVerifyService from '../../src/services/ghsVerifyService.js'
+import ghsWebVerifyService from '../../src/services/ghsWebVerifyService.js'
 import config from '../../config.js'
 import fs from 'fs'
 import path from 'path'
@@ -37,7 +37,7 @@ const parseVerifyInput = (input = '') => {
 export default {
     name: 'verif',
     aliases: ['ghs'],
-    description: 'Verifikasi GHS via email,password,otp (role student)',
+    description: 'Verifikasi GHS via browser (email,password,otp + ID card)',
     ownerOnly: false,
     ignoreLimit: true,
     execute: async ({ sock, msg, text, sender, pushName, prefix, command, react, usersDb }) => {
@@ -45,9 +45,10 @@ export default {
         const parsed = parseVerifyInput(text)
         const ownerNumber = String((config.ownerNumbers || [])[0] || '').replace(/[^0-9]/g, '')
         const ownerJid = ownerNumber ? `${ownerNumber}@s.whatsapp.net` : ''
-        const verifyCost = ghsVerifyService.getVerificationCost()
+        const verifyCost = ghsWebVerifyService.getVerificationCost()
         const userStats = usersDb.getGhsStats(sender)
         const coins = usersDb.getCoins(sender)
+        const savedIdCard = usersDb.getGhsIdCard(sender)
         const dashboardText = [
             `*GITHUB STUDENT DEVELOPER PACK VERIFICATION*`,
             '',
@@ -56,13 +57,15 @@ export default {
             `- Coins: ${coins}`,
             `- Verifications: ${userStats.approved}`,
             `- Failed: ${userStats.failed}`,
+            `- ID Card: ${savedIdCard ? 'tersimpan' : 'belum upload'}`,
             '',
             '*Example usage*',
             `- ${prefix + command} emailkamu@gmail.com, password, otp`,
+            `- ${prefix}uploadid (reply foto/pdf id card di private chat)`,
             '',
             '*Requirements*',
             '- 2FA enabled (authenticator app)',
-            '- Account at least 3 days old',
+            '- ID card sudah diupload via .uploadid',
             `- Verification costs student → ${verifyCost} coins`,
             '',
             'Coins charged only on approval. rejected = free.'
@@ -76,8 +79,19 @@ export default {
             }, { quoted: msg })
         }
 
-        const reservedUser = usersDb.deductCoins(sender, verifyCost)
-        if (!reservedUser) {
+        if (!savedIdCard?.url) {
+            return sock.sendMessage(jid, {
+                text: `id card belum ada. upload dulu di private chat:\n- ${prefix}uploadid (reply foto/pdf id card)`
+            }, { quoted: msg })
+        }
+
+        if (ghsWebVerifyService.hasActiveJobForUser(sender)) {
+            return sock.sendMessage(jid, {
+                text: 'masih ada proses verifikasi aktif. tunggu sampai selesai dulu.'
+            }, { quoted: msg })
+        }
+
+        if (coins < verifyCost) {
             const noCoinText = `coins kamu gak cukup butuh ${verifyCost} coins untuk verfikasi. chat owner ${ownerJid ? toMentionTag(ownerJid) : '-'}.`
             return sock.sendMessage(jid, {
                 text: noCoinText,
@@ -98,22 +112,29 @@ export default {
         try {
             await sock.sendMessage(jid, { text: initText }, { quoted: msg })
         } catch (err) {
-            usersDb.addCoins(sender, verifyCost)
             throw err
         }
         await react('✅')
 
-        void ghsVerifyService.submitVerificationFlow({
-            email: parsed.email,
-            password: parsed.password,
-            otp: parsed.otp,
-            role: 'student',
-            chatJid: jid,
-            requesterJid: sender,
-            requesterName: clean(pushName),
-            chargedUserJid: sender,
-            coinCost: verifyCost,
-            coinsReserved: true
-        })
+        try {
+            await ghsWebVerifyService.submitVerificationFlow({
+                sock,
+                email: parsed.email,
+                password: parsed.password,
+                otp: parsed.otp,
+                chatJid: jid,
+                requesterJid: sender,
+                requesterName: clean(pushName),
+                chargedUserJid: sender,
+                idCardUrl: savedIdCard.url,
+                idCardFileName: savedIdCard.fileName || 'id-card',
+                coinCost: verifyCost
+            })
+        } catch (err) {
+            await react('❌')
+            return sock.sendMessage(jid, {
+                text: `❌ gagal memulai verifikasi: ${clean(err?.message || err)}`
+            }, { quoted: msg })
+        }
     }
 }

@@ -70,6 +70,11 @@ class UserDatabase {
             changed = true
         }
 
+        if (!doc.ghsIdCard || typeof doc.ghsIdCard !== 'object' || Array.isArray(doc.ghsIdCard)) {
+            doc.ghsIdCard = null
+            changed = true
+        }
+
         return changed
     }
 
@@ -123,7 +128,8 @@ class UserDatabase {
                 limitDate: '',
                 coins: defaultCoins,
                 ghsApproved: 0,
-                ghsFailed: 0
+                ghsFailed: 0,
+                ghsIdCard: null
             }
             this._persistUser(jid)
         }
@@ -372,6 +378,54 @@ class UserDatabase {
             approved: Math.max(0, Number(user.ghsApproved) || 0),
             failed: Math.max(0, Number(user.ghsFailed) || 0)
         }
+    }
+
+    setGhsIdCard(jid, {
+        url = '',
+        r2Key = '',
+        mimetype = '',
+        fileName = '',
+        size = 0
+    } = {}) {
+        const user = this.getUser(jid)
+        this._ensureCoinsAndGhsStats(jid, user)
+
+        user.ghsIdCard = {
+            url: String(url || '').trim(),
+            r2Key: String(r2Key || '').trim(),
+            mimetype: String(mimetype || '').trim(),
+            fileName: String(fileName || '').trim(),
+            size: Math.max(0, Number(size) || 0),
+            updatedAt: Date.now()
+        }
+
+        this._persistUser(jid)
+        return user.ghsIdCard
+    }
+
+    getGhsIdCard(jid) {
+        const user = this.getUser(jid)
+        this._ensureCoinsAndGhsStats(jid, user)
+        const card = user.ghsIdCard
+        if (!card || typeof card !== 'object') return null
+        const url = String(card.url || '').trim()
+        if (!url) return null
+        return {
+            url,
+            r2Key: String(card.r2Key || '').trim(),
+            mimetype: String(card.mimetype || '').trim(),
+            fileName: String(card.fileName || '').trim(),
+            size: Math.max(0, Number(card.size) || 0),
+            updatedAt: Math.max(0, Number(card.updatedAt) || 0)
+        }
+    }
+
+    clearGhsIdCard(jid) {
+        const user = this.getUser(jid)
+        this._ensureCoinsAndGhsStats(jid, user)
+        user.ghsIdCard = null
+        this._persistUser(jid)
+        return user
     }
 }
 

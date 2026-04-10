@@ -47,16 +47,23 @@ const loadPlugins = async () => {
         }
 
         const files = getFiles(pluginsDir)
+        let loaded = 0
+        let failed = 0
 
         for (const file of files) {
-            const pluginPath = `file://${file}`
-            const module = await import(pluginPath)
-
-            if (module.default && module.default.name) {
-                plugins.set(module.default.name, module.default)
+            try {
+                const pluginPath = `file://${file}`
+                const module = await import(pluginPath)
+                if (module.default && module.default.name) {
+                    plugins.set(module.default.name, module.default)
+                    loaded += 1
+                }
+            } catch (err) {
+                failed += 1
+                logger.warn(`Plugin load failed: ${file} -> ${err?.message || err}`)
             }
         }
-        logger.info(`Loaded ${plugins.size} plugins`)
+        logger.info(`Loaded ${loaded} plugins${failed ? ` (${failed} failed)` : ''}`)
     } catch (err) {
         logger.error(`Failed to load plugins: ${err.message}`)
     }
