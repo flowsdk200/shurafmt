@@ -1,7 +1,6 @@
-import axios from 'axios'
-import FormData from 'form-data'
 import mime from 'mime-types'
 import { downloadContentFromMessage } from 'baileys'
+import { uploadToR2 } from '../../src/utils/r2.js'
 
 const SUPPORTED = ['imageMessage', 'videoMessage', 'audioMessage', 'documentMessage', 'stickerMessage']
 
@@ -46,23 +45,6 @@ const guessFileName = (type, media) => {
     return `upload.${ext}`
 }
 
-const uploadToCatbox = async (buffer, filename) => {
-    const form = new FormData()
-    form.append('reqtype', 'fileupload')
-    form.append('fileToUpload', buffer, filename)
-
-    const { data } = await axios.post('https://catbox.moe/user/api.php', form, {
-        headers: form.getHeaders(),
-        timeout: 120000,
-        maxBodyLength: Infinity,
-        maxContentLength: Infinity
-    })
-
-    const url = String(data || '').trim()
-    if (!/^https?:\/\//i.test(url)) throw new Error(url || 'Upload gagal')
-    return url
-}
-
 const formatSize = (bytes) => {
     if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
     if (bytes >= 1024) return `${(bytes / 1024).toFixed(2)} KB`
@@ -72,7 +54,7 @@ const formatSize = (bytes) => {
 export default {
     name: 'tourl',
     aliases: ['upload', 'catbox'],
-    description: 'Upload media/file ke catbox',
+    description: 'Upload media/file ke R2',
     execute: async ({ sock, msg, isQuoted, quotedMsg, quotedType, react, useLimit, prefix, command }) => {
         const jid = msg.key.remoteJid
 
@@ -102,7 +84,10 @@ export default {
             const buffer = await mediaToBuffer(mediaType, mediaContent)
             const filename = guessFileName(mediaType, mediaContent)
             const mimetype = mediaContent?.mimetype || mime.lookup(filename) || 'application/octet-stream'
-            const url = await uploadToCatbox(buffer, filename)
+            const uploaded = await uploadToR2(buffer, {
+                filename,
+                contentType: mimetype
+            })
 
             useLimit()
             await react('✅')
@@ -111,7 +96,7 @@ export default {
                     `\`\`\`✅ Upload successful\n\n` +
                     `• Type: ${mimetype}\n` +
                     `• Size: ${formatSize(buffer.length)}\n` +
-                    `• Link: ${url}\`\`\``
+                    `• Link: ${uploaded.url}\`\`\``
             }, { quoted: msg })
         } catch (err) {
             await react('❌')
