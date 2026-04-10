@@ -4,7 +4,7 @@ const ASITHA_ORIGIN = 'https://asitha.top'
 const ASITHA_API_BASE = 'https://back.asitha.top/api'
 const RECAPTCHA_SITE_KEY = '6LemKk8sAAAAAH5PB3f1EspbMlXjtwv5C8tiMHSm'
 const DEFAULT_REACTS = '🗿,🔥,🎉,😱'
-const LIMIT_COST = 20
+const LIMIT_COST = 30
 
 const spendLimit = (usersDb, jid, amount) => {
     const total = Math.max(0, Number(amount) || 0)
@@ -17,10 +17,12 @@ const parseInput = (raw = '') => {
     const input = String(raw || '').trim()
     if (!input) return { postLink: '', reacts: DEFAULT_REACTS }
 
-    const [left, right] = input.split('|').map((v) => String(v || '').trim())
-    const linkMatch = (left || input).match(/https?:\/\/(?:www\.)?whatsapp\.com\/channel\/[^\s|]+/i)
+    const linkMatch = input.match(/https?:\/\/(?:www\.)?whatsapp\.com\/channel\/[^\s|]+/i)
     const postLink = linkMatch?.[0] || ''
-    const reacts = right || DEFAULT_REACTS
+    if (!postLink) return { postLink: '', reacts: DEFAULT_REACTS }
+
+    const rest = input.replace(postLink, '').trim()
+    const reacts = rest.replace(/^\|\s*/, '').trim() || DEFAULT_REACTS
 
     return { postLink, reacts }
 }
@@ -120,7 +122,7 @@ export default {
 
         if (!validatePostLink(postLink)) {
             return sock.sendMessage(jid, {
-                text: `Contoh penggunaan:\n- ${prefix + command} https://whatsapp.com/channel/0029Vb8IWc3FSAsy4xaX991n/289|🗿,🔥,🎉,😱`
+                text: `Contoh penggunaan:\n- ${prefix + command} https://whatsapp.com/channel/0029Vb8IWc3FSAsy4xaX991n/289 🗿,🔥,🎉,😱`
             }, { quoted: msg })
         }
 
