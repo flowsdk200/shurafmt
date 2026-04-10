@@ -114,7 +114,7 @@ export default {
     description: 'Send reaction to WhatsApp channel post via Asitha flow',
     ownerOnly: false,
     ignoreLimit: true,
-    execute: async ({ sock, msg, text, react, config, usersDb, sender, isOwner, prefix, command }) => {
+    execute: async ({ sock, msg, text, react, config, usersDb, sender, prefix, command }) => {
         const jid = msg.key.remoteJid
         const { postLink, reacts } = parseInput(text)
 
@@ -138,13 +138,11 @@ export default {
             }, { quoted: msg })
         }
 
-        if (!isOwner) {
-            const currentLimit = Number(usersDb?.getLimit?.(sender) || 0)
-            if (currentLimit < LIMIT_COST) {
-                return sock.sendMessage(jid, {
-                    text: `Limit kamu tidak cukup. command ini butuh ${LIMIT_COST} limit (sisa: ${currentLimit}).`
-                }, { quoted: msg })
-            }
+        const currentLimit = Number(usersDb?.getLimit?.(sender) || 0)
+        if (currentLimit < LIMIT_COST) {
+            return sock.sendMessage(jid, {
+                text: `Limit kamu tidak cukup. command ini butuh ${LIMIT_COST} limit (sisa: ${currentLimit}).`
+            }, { quoted: msg })
         }
 
         await react('⏳')
@@ -161,9 +159,7 @@ export default {
                 throw new Error(message)
             }
 
-            if (!isOwner) {
-                spendLimit(usersDb, sender, LIMIT_COST)
-            }
+            spendLimit(usersDb, sender, LIMIT_COST)
 
             const remainingLimit = Number(usersDb?.getLimit?.(sender) || 0)
 
@@ -173,8 +169,8 @@ export default {
                     `✅ *REACT CHANNEL BERHASIL*\n\n` +
                     `• Post: ${postLink}\n` +
                     `• Reacts: ${reacts}\n` +
-                    `• Cost: ${isOwner ? 0 : LIMIT_COST} limit\n` +
-                    `• Sisa limit: ${isOwner ? 'unlimited (owner)' : remainingLimit}\n` +
+                    `• Cost: ${LIMIT_COST} limit\n` +
+                    `• Sisa limit: ${remainingLimit}\n` +
                     `• Status: ${result.status}`
             }, { quoted: msg })
         } catch (err) {
