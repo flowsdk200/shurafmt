@@ -1,21 +1,35 @@
 import axios from 'axios'
+import crypto from 'crypto'
 
 const OEMBED_URL = 'https://www.youtube.com/oembed'
 const TIMEOUT = 60000
 const YT_TIMEOUT = 15000
 const YT1S_ORIGIN = 'https://embed.dlsrv.online'
 const YT1S_REFERER = 'https://embed.dlsrv.online/'
+const YT1S_REF_FULL_BASE = 'https://embed.dlsrv.online/v1/full?videoId='
 const YT1S_SESSION_ENDPOINT = '/api/session-token'
+const YT1S_SIGN_SECRET = '682b2h1Sj5xzcjq4dKM59bKCkyZ7W3QWAM8efefOwqBJOs0qLgregrg4e3c5a8swswd'
+const BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36'
+
+const withBrowserHeaders = (videoId = '') => ({
+  'User-Agent': BROWSER_UA,
+  Origin: YT1S_ORIGIN,
+  Referer: `${YT1S_REF_FULL_BASE}${videoId || ''}`,
+  Accept: 'application/json, text/plain, */*',
+  'Accept-Language': 'en-US,en;q=0.9',
+  'Sec-Fetch-Site': 'same-origin',
+  'Sec-Fetch-Mode': 'cors',
+  'Sec-Fetch-Dest': 'empty',
+  Priority: 'u=1, i',
+  'Sec-CH-UA': '"Google Chrome";v="137", "Chromium";v="137", "Not/A)Brand";v="24"',
+  'Sec-CH-UA-Mobile': '?0',
+  'Sec-CH-UA-Platform': '"Windows"'
+})
 
 const client = axios.create({
   baseURL: YT1S_ORIGIN,
   timeout: TIMEOUT,
-  headers: {
-    'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36',
-    Origin: YT1S_ORIGIN,
-    Referer: YT1S_REFERER,
-    Accept: 'application/json'
-  }
+  headers: withBrowserHeaders('')
 })
 const ytClient = axios.create({
   timeout: YT_TIMEOUT,
@@ -62,7 +76,9 @@ async function getSessionToken(forceRefresh = false) {
     return sessionTokenCache.token
   }
 
-  const { data } = await client.get(YT1S_SESSION_ENDPOINT)
+  const { data } = await client.get(YT1S_SESSION_ENDPOINT, {
+    headers: withBrowserHeaders('')
+  })
   const token = String(data?.token || '').trim()
   if (!token) throw new Error('Gagal mendapatkan session token')
 
@@ -86,18 +102,43 @@ function withSessionHeaders(token) {
   }
 }
 
-async function postWithSession(path, payload) {
+async function getPublicIp(videoId = '') {
+  const { data } = await client.get('/api/get-ip', {
+    headers: {
+      ...withBrowserHeaders(videoId)
+    }
+  })
+
+  const ip = String(data?.ip || '').trim()
+  if (!ip) throw new Error('Gagal mendapatkan IP publik')
+  return ip
+}
+
+function buildSignature(timestamp, ip, videoId) {
+  return crypto
+    .createHmac('sha256', YT1S_SIGN_SECRET)
+    .update(`${timestamp}:${ip}:${videoId}`)
+    .digest('hex')
+}
+
+async function postWithSession(path, payload, { videoId = '' } = {}) {
   let token = await getSessionToken(false)
   try {
     const { data } = await client.post(path, payload, {
-      headers: withSessionHeaders(token)
+      headers: {
+        ...withBrowserHeaders(videoId),
+        ...withSessionHeaders(token)
+      }
     })
     return data
   } catch (err) {
     if (!isAuthError(err)) throw err
     token = await getSessionToken(true)
     const { data } = await client.post(path, payload, {
-      headers: withSessionHeaders(token)
+      headers: {
+        ...withBrowserHeaders(videoId),
+        ...withSessionHeaders(token)
+      }
     })
     return data
   }
@@ -105,7 +146,7 @@ async function postWithSession(path, payload) {
 
 async function getInfo(videoId) {
   try {
-    const data = await postWithSession('/api/info', { videoId })
+    const data = await postWithSession('/api/info', { videoId }, { videoId })
     if (!data || data.status !== 'info' || !data.info) {
       throw new Error(data?.error || 'Gagal mengambil data')
     }
@@ -121,11 +162,17 @@ async function getInfo(videoId) {
 async function getDownload(videoId, format, quality) {
   try {
     const endpoint = format === 'mp4' ? '/api/download/mp4' : '/api/download/mp3'
+    const ip = await getPublicIp(videoId)
+    const timestamp = Date.now().toString()
+    const signature = buildSignature(timestamp, ip, videoId)
+
     const data = await postWithSession(endpoint, {
       videoId,
       format,
-      quality
-    })
+      quality,
+      timestamp,
+      signature
+    }, { videoId })
     if (!data || data.status !== 'tunnel' || !data.url) {
       throw new Error(data?.error || 'Gagal mendapatkan link download')
     }

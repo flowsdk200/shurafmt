@@ -6,6 +6,13 @@ const RECAPTCHA_SITE_KEY = '6LemKk8sAAAAAH5PB3f1EspbMlXjtwv5C8tiMHSm'
 const DEFAULT_REACTS = '🗿,🔥,🎉,😱'
 const LIMIT_COST = 20
 
+const spendLimit = (usersDb, jid, amount) => {
+    const total = Math.max(0, Number(amount) || 0)
+    for (let i = 0; i < total; i += 1) {
+        usersDb.decrementLimit(jid)
+    }
+}
+
 const parseInput = (raw = '') => {
     const input = String(raw || '').trim()
     if (!input) return { postLink: '', reacts: DEFAULT_REACTS }
@@ -155,7 +162,7 @@ export default {
             }
 
             if (!isOwner) {
-                usersDb.reduceLimit(sender, LIMIT_COST)
+                spendLimit(usersDb, sender, LIMIT_COST)
             }
 
             const remainingLimit = Number(usersDb?.getLimit?.(sender) || 0)

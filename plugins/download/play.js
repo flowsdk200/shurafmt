@@ -19,13 +19,15 @@ export default {
         const isUrl = q.includes('youtube.com') || q.includes('youtu.be')
         let url = q
         let metaFromSearch = null
+        let candidates = []
 
         if (!isUrl) {
             try {
-                const res = await search(q, 1)
+                const res = await search(q, 5)
                 if (!res || res.length === 0) {
                     return sock.sendMessage(jid, { text: `❌ Tidak ditemukan hasil untuk: ${q}` }, { quoted: msg })
                 }
+                candidates = res
                 metaFromSearch = res[0]
                 url = res[0].url
             } catch {
@@ -36,10 +38,37 @@ export default {
         await react('⏳')
 
         try {
-            const res = await yt1sdl(url, { type: 'audio', audioQuality: '128' })
-            const audioInfo = Array.isArray(res?.audio)
-                ? (res.audio.find((x) => x?.url) || null)
-                : null
+            const tryOne = async (candidateUrl, candidateMeta = null) => {
+                const r = await yt1sdl(candidateUrl, { type: 'audio', audioQuality: '128' })
+                const a = Array.isArray(r?.audio)
+                    ? (r.audio.find((x) => x?.url) || null)
+                    : null
+                return { r, a, candidateMeta }
+            }
+
+            let picked = null
+
+            if (isUrl) {
+                picked = await tryOne(url, null)
+            } else {
+                let lastErr = null
+                for (const item of candidates) {
+                    try {
+                        picked = await tryOne(item.url, item)
+                        if (picked?.a?.url) {
+                            url = item.url
+                            metaFromSearch = item
+                            break
+                        }
+                    } catch (err) {
+                        lastErr = err
+                    }
+                }
+                if (!picked?.a?.url && lastErr) throw lastErr
+            }
+
+            const res = picked?.r
+            const audioInfo = picked?.a || null
 
             if (!audioInfo?.url) {
                 return sock.sendMessage(jid, { text: '❌ Audio tidak tersedia untuk video ini.' }, { quoted: msg })
