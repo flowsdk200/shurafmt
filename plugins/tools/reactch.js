@@ -129,14 +129,14 @@ export default {
         const jwtToken = String(config?.asitha?.jwtToken || process.env.ASITHA_JWT || '').trim()
         if (!jwtToken) {
             return sock.sendMessage(jid, {
-                text: 'JWT Asitha belum di-set. Isi config.asitha.jwtToken atau env ASITHA_JWT.'
+                text: 'JWT belum di-set. isi di config.js.'
             }, { quoted: msg })
         }
 
         const isLikelyJwt = jwtToken.split('.').length === 3
         if (!isLikelyJwt) {
             return sock.sendMessage(jid, {
-                text: 'JWT Asitha tidak valid. Format token harus JWT (3 bagian dipisah titik).'
+                text: 'JWT tidak valid.'
             }, { quoted: msg })
         }
 
