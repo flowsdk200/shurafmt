@@ -113,7 +113,7 @@ export default {
 
         if (!validatePostLink(postLink)) {
             return sock.sendMessage(jid, {
-                text: `Contoh penggunaan:\n- ${prefix + commamf} https://whatsapp.com/channel/0029Vb8IWc3FSAsy4xaX991n/289|🗿,🔥,🎉,😱`
+                text: `Contoh penggunaan:\n- ${prefix + command} https://whatsapp.com/channel/0029Vb8IWc3FSAsy4xaX991n/289|🗿,🔥,🎉,😱`
             }, { quoted: msg })
         }
 
