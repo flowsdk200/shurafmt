@@ -29,6 +29,9 @@ const config = {
     weatherApiKey: '0978f91adc6244088a9181544260603',
     ahsanlabsBaseUrl: 'http://api.ahsanlabs.online',
     ahsanlabsApiKey: 'GYoVnnRgs9UI1BvSqPra_5U8lEJMrg9LcxXSR5Ta7k4',
+    asitha: {
+        jwtToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5NGE4MGIwZjk3Mzg0NzdkNTNmNzBlZCIsImlhdCI6MTc3NTgzMDAyOSwiZXhwIjoxNzc2NDM0ODI5fQ.xHqJhcD3fL_ULMn0Cj8pHXdTUnbdh9R1PnJS5ryjZ4s'
+    },
     channelJid: '120363387535716103@newsletter',
     channelLink: 'https://whatsapp.com/channel/0029Vb8IWc3FSAsy4xaX991n',
     scriptUrl: 'https://github.com/yemo-dev/biohazard-botz',
