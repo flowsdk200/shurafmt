@@ -4,6 +4,7 @@ const ASITHA_ORIGIN = 'https://asitha.top'
 const ASITHA_API_BASE = 'https://back.asitha.top/api'
 const RECAPTCHA_SITE_KEY = '6LemKk8sAAAAAH5PB3f1EspbMlXjtwv5C8tiMHSm'
 const DEFAULT_REACTS = '🗿,🔥,🎉,😱'
+const LIMIT_COST = 20
 
 const parseInput = (raw = '') => {
     const input = String(raw || '').trim()
@@ -106,13 +107,13 @@ export default {
     description: 'Send reaction to WhatsApp channel post via Asitha flow',
     ownerOnly: false,
     ignoreLimit: true,
-    execute: async ({ sock, msg, text, react, config }) => {
+    execute: async ({ sock, msg, text, react, config, usersDb, sender, isOwner, prefix, command }) => {
         const jid = msg.key.remoteJid
         const { postLink, reacts } = parseInput(text)
 
         if (!validatePostLink(postLink)) {
             return sock.sendMessage(jid, {
-                text: 'Format: .reactch <post_link>|<emoji_csv>\nContoh: .reactch https://whatsapp.com/channel/xxxx/123|🔥,❤️,✨'
+                text: `Contoh penggunaan:\n- ${prefix + commamf} https://whatsapp.com/channel/0029Vb8IWc3FSAsy4xaX991n/289|🗿,🔥,🎉,😱`
             }, { quoted: msg })
         }
 
@@ -130,6 +131,15 @@ export default {
             }, { quoted: msg })
         }
 
+        if (!isOwner) {
+            const currentLimit = Number(usersDb?.getLimit?.(sender) || 0)
+            if (currentLimit < LIMIT_COST) {
+                return sock.sendMessage(jid, {
+                    text: `Limit kamu tidak cukup. command ini butuh ${LIMIT_COST} limit (sisa: ${currentLimit}).`
+                }, { quoted: msg })
+            }
+        }
+
         await react('⏳')
 
         try {
@@ -144,12 +154,20 @@ export default {
                 throw new Error(message)
             }
 
+            if (!isOwner) {
+                usersDb.reduceLimit(sender, LIMIT_COST)
+            }
+
+            const remainingLimit = Number(usersDb?.getLimit?.(sender) || 0)
+
             await react('✅')
             await sock.sendMessage(jid, {
                 text:
-                    `✅ *React channel berhasil*\n\n` +
+                    `✅ *REACT CHANNEL BERHASIL*\n\n` +
                     `• Post: ${postLink}\n` +
                     `• Reacts: ${reacts}\n` +
+                    `• Cost: ${isOwner ? 0 : LIMIT_COST} limit\n` +
+                    `• Sisa limit: ${isOwner ? 'unlimited (owner)' : remainingLimit}\n` +
                     `• Status: ${result.status}`
             }, { quoted: msg })
         } catch (err) {
