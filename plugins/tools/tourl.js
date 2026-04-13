@@ -53,7 +53,7 @@ const formatSize = (bytes) => {
 
 export default {
     name: 'tourl',
-    aliases: ['upload', 'catbox'],
+    aliases: ['upload'],
     description: 'Upload media/file ke R2',
     execute: async ({ sock, msg, isQuoted, quotedMsg, quotedType, react, useLimit, prefix, command }) => {
         const jid = msg.key.remoteJid

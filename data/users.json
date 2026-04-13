@@ -1,0 +1,82 @@
+{
+  "users": {
+    "241863733": {
+      "tg_name": "Unknown Number",
+      "tg_username": "Johnwick22224",
+      "coins": 1,
+      "verifications": 0,
+      "success": 0,
+      "failed": 0,
+      "referrals": 0,
+      "earned": 0,
+      "referred_by": "8107676564",
+      "created_at": 1775911048041,
+      "updated_at": 1775911084582
+    },
+    "1374294212": {
+      "tg_name": "Arcvour. [SlowRes]",
+      "tg_username": "arcvour",
+      "coins": 1,
+      "verifications": 0,
+      "success": 0,
+      "failed": 0,
+      "referrals": 0,
+      "earned": 0,
+      "referred_by": "",
+      "created_at": 1775910877302,
+      "updated_at": 1775911046316
+    },
+    "6637373669": {
+      "tg_name": "Gojo Saturo",
+      "tg_username": "s6turo",
+      "coins": 1,
+      "verifications": 0,
+      "success": 0,
+      "failed": 0,
+      "referrals": 0,
+      "earned": 0,
+      "referred_by": "8107676564",
+      "created_at": 1775910934703,
+      "updated_at": 1775911046316
+    },
+    "7114718763": {
+      "tg_name": "james s lucky y",
+      "tg_username": "unplugea",
+      "coins": 1,
+      "verifications": 0,
+      "success": 0,
+      "failed": 0,
+      "referrals": 0,
+      "earned": 0,
+      "referred_by": "",
+      "created_at": 1775910238933,
+      "updated_at": 1775911046316
+    },
+    "8107676564": {
+      "tg_name": "abc",
+      "tg_username": "anurahasia",
+      "coins": 2,
+      "verifications": 1,
+      "success": 0,
+      "failed": 1,
+      "referrals": 2,
+      "earned": 2,
+      "referred_by": "",
+      "created_at": 1775908179407,
+      "updated_at": 1775911218318
+    },
+    "8198210739": {
+      "tg_name": "666 - kiora",
+      "tg_username": "flwssss",
+      "coins": 1,
+      "verifications": 0,
+      "success": 0,
+      "failed": 0,
+      "referrals": 0,
+      "earned": 0,
+      "referred_by": "",
+      "created_at": 1775908380785,
+      "updated_at": 1775911046316
+    }
+  }
+}

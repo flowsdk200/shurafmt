@@ -1,0 +1,446 @@
+import fs from 'fs'
+import path from 'path'
+import { chromium } from 'playwright'
+import { createRequire } from 'module'
+
+const require = createRequire(import.meta.url)
+const { Jimp } = require('jimp')
+
+const DEFAULTS = {
+    fullName: '',
+    faculty: 'Fakultas Dakwah',
+    programType: 'Bachelor',
+    enrollmentYear: '2026',
+    universityName: 'Sultan Maulana Hasanuddin State Islamic University, Banten',
+    universityWebsite: 'uinbanten.ac.id',
+    universityAddress: 'Jalan Jendral Sudirman No. 30, Panancangan, Cipocok Jaya, Kota Serang, Banten 42118, Indonesia',
+    defaultPhotoPath: 'scrape/1.jpg',
+    defaultLogoUrl: 'https://9z9.web.id/f2677e.jpg',
+    officialSignature: 'S. Davis',
+    orientation: 'portrait'
+}
+
+const STUDENT_ID_STATE_PATH = path.resolve(process.cwd(), 'tmp', 'studentid-seq-state.json')
+
+const escapeRegex = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+const randomNumber = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min
+
+const generateStudentId = () => {
+    let current = 0
+    try {
+        const raw = fs.readFileSync(STUDENT_ID_STATE_PATH, 'utf8')
+        const parsed = JSON.parse(raw)
+        if (Number.isInteger(parsed?.counter) && parsed.counter >= 0) {
+            current = parsed.counter
+        }
+    } catch {}
+
+    const next = current >= 999 ? 1 : current + 1
+    fs.mkdirSync(path.dirname(STUDENT_ID_STATE_PATH), { recursive: true })
+    fs.writeFileSync(STUDENT_ID_STATE_PATH, JSON.stringify({ counter: next }))
+
+    const part = String(next).padStart(3, '0')
+    return `2025${part}${part}`
+}
+
+const generateValidityEnd = () => {
+    const mm = String(randomNumber(1, 12)).padStart(2, '0')
+    const dd = String(randomNumber(1, 28)).padStart(2, '0')
+    return `2030/${mm}-${dd}`
+}
+
+const normalizeOrientation = (value) => {
+    const v = String(value || '').trim().toLowerCase()
+    return v === 'landscape' ? 'landscape' : 'portrait'
+}
+
+const parseArgs = (argv) => {
+    const out = { _: [] }
+    for (let i = 0; i < argv.length; i += 1) {
+        const arg = String(argv[i] || '')
+        if (!arg.startsWith('--')) {
+            out._.push(arg)
+            continue
+        }
+
+        const key = arg.slice(2)
+        const next = argv[i + 1]
+        if (next && !String(next).startsWith('--')) {
+            out[key] = String(next)
+            i += 1
+            continue
+        }
+        out[key] = 'true'
+    }
+    return out
+}
+
+const ensureOutputPath = (output, studentId) => {
+    const fallback = path.resolve(process.cwd(), 'tmp', `student-id-${studentId || 'card'}.png`)
+    const target = output ? path.resolve(process.cwd(), output) : fallback
+    fs.mkdirSync(path.dirname(target), { recursive: true })
+    return target
+}
+
+const normalizeLogoBuffer = async (buffer) => {
+    try {
+        const image = await Jimp.fromBuffer(buffer)
+        const w = image.width
+        const h = image.height
+        if (!w || !h) return buffer
+
+        let minX = w
+        let minY = h
+        let maxX = -1
+        let maxY = -1
+
+        image.scan(0, 0, w, h, (x, y, idx) => {
+            const r = image.bitmap.data[idx]
+            const g = image.bitmap.data[idx + 1]
+            const b = image.bitmap.data[idx + 2]
+            const a = image.bitmap.data[idx + 3]
+            const isBg = a < 20 || (r > 242 && g > 242 && b > 242)
+            if (isBg) return
+
+            if (x < minX) minX = x
+            if (y < minY) minY = y
+            if (x > maxX) maxX = x
+            if (y > maxY) maxY = y
+        })
+
+        if (maxX < minX || maxY < minY) {
+            return await image.getBuffer('image/png')
+        }
+
+        const contentW = maxX - minX + 1
+        const contentH = maxY - minY + 1
+        const pad = Math.max(2, Math.round(Math.max(contentW, contentH) * 0.06))
+
+        const cropX = Math.max(0, minX - pad)
+        const cropY = Math.max(0, minY - pad)
+        const cropW = Math.min(w - cropX, contentW + pad * 2)
+        const cropH = Math.min(h - cropY, contentH + pad * 2)
+
+        const cropped = image.clone().crop({ x: cropX, y: cropY, w: cropW, h: cropH })
+        const side = Math.max(cropped.width, cropped.height)
+        const square = new Jimp({ width: side, height: side, color: 0x00000000 })
+        const offsetX = Math.floor((side - cropped.width) / 2)
+        const offsetY = Math.floor((side - cropped.height) / 2)
+        square.composite(cropped, offsetX, offsetY)
+
+        return await square.getBuffer('image/png')
+    } catch {
+        return buffer
+    }
+}
+
+const fetchRemoteImageBuffer = async (url) => {
+    const target = String(url || '').trim()
+    if (!/^https?:\/\//i.test(target)) return null
+
+    const res = await fetch(target, {
+        signal: AbortSignal.timeout(45000),
+        headers: {
+            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+    })
+
+    if (!res.ok) {
+        throw new Error(`Gagal mengambil logo default (${res.status})`)
+    }
+
+    const arr = await res.arrayBuffer()
+    return normalizeLogoBuffer(Buffer.from(arr))
+}
+
+const normalizePhotoBuffer = async (buffer) => {
+    try {
+        const image = await Jimp.fromBuffer(buffer)
+        const srcW = image.width
+        const srcH = image.height
+        if (!srcW || !srcH) return buffer
+
+        const frameRatio = 32 / 40
+        let cropW = srcW
+        let cropH = srcH
+        let cropX = 0
+        let cropY = 0
+
+        if (srcW / srcH > frameRatio) {
+            cropW = Math.round(srcH * frameRatio)
+            cropH = srcH
+            cropX = Math.max(0, Math.floor((srcW - cropW) / 2))
+            cropY = 0
+        } else {
+            cropW = srcW
+            cropH = Math.round(srcW / frameRatio)
+            const overflow = Math.max(0, srcH - cropH)
+            cropX = 0
+            cropY = Math.max(0, Math.floor(overflow * 0.2))
+        }
+
+        image.crop({ x: cropX, y: cropY, w: cropW, h: cropH })
+        image.cover({ w: 1000, h: 1500 })
+        return await image.getBuffer('image/jpeg')
+    } catch {
+        return buffer
+    }
+}
+
+const fetchLocalPhotoBuffer = async (filePath) => {
+    const target = path.isAbsolute(filePath)
+        ? filePath
+        : path.resolve(process.cwd(), String(filePath || '').trim())
+
+    if (!fs.existsSync(target)) {
+        throw new Error(`Foto mahasiswa default tidak ditemukan: ${target}`)
+    }
+
+    const raw = fs.readFileSync(target)
+    return normalizePhotoBuffer(raw)
+}
+
+const fillInput = async (page, name, value) => {
+    const input = page.locator(`input[name="${name}"]`).first()
+    if (await input.count()) {
+        await input.fill(String(value || ''))
+    }
+}
+
+const clickByDom = async (locator) => {
+    if (!(await locator.count())) return false
+    await locator.click({ force: true })
+    return true
+}
+
+const setComboboxByLabel = async (page, labelText, optionText) => {
+    const field = page.locator(`div:has(label:has-text("${labelText}")) button[role="combobox"]`).first()
+    if (!(await field.count())) return
+    await clickByDom(field)
+    const option = page.getByRole('option', { name: new RegExp(`^${escapeRegex(optionText)}$`, 'i') }).first()
+    if (!(await option.count())) {
+        await page.keyboard.press('Escape').catch(() => {})
+        return
+    }
+    await clickByDom(option)
+}
+
+const applyDefaultAssets = async (page, { logoBuffer, photoBuffer }) => {
+    if ((!logoBuffer || !logoBuffer.length) && (!photoBuffer || !photoBuffer.length)) return
+
+    const logoFile = {
+        name: 'default-logo.png',
+        mimeType: 'image/png',
+        buffer: logoBuffer
+    }
+
+    const photoFile = {
+        name: 'default-photo.jpg',
+        mimeType: 'image/jpeg',
+        buffer: photoBuffer
+    }
+
+    const clickDesignSubTab = async (tabName) => {
+        const tab = page.getByRole('tab', { name: new RegExp(`^${escapeRegex(tabName)}$`, 'i') }).first()
+        if (await tab.count()) await clickByDom(tab)
+    }
+
+    await clickDesignSubTab('Media Settings')
+    const photoUpload = page.locator('input#photoUpload').first()
+    if (await photoUpload.count() && photoBuffer?.length) {
+        await photoUpload.setInputFiles(photoFile)
+    }
+
+    const logoUpload = page.locator('input#logoUpload').first()
+    if (await logoUpload.count() && logoBuffer?.length) {
+        await logoUpload.setInputFiles(logoFile)
+    }
+
+    await clickDesignSubTab('Back Settings')
+    const backLogoUpload = page.locator('input#backLogoUpload').first()
+    if (await backLogoUpload.count() && logoBuffer?.length) {
+        await backLogoUpload.setInputFiles(logoFile)
+    }
+}
+
+const clickTab = async (page, tabName) => {
+    const matcher = new RegExp(`^${escapeRegex(tabName)}$`, 'i')
+
+    let tab = page.getByRole('tab', { name: matcher }).first()
+    if (await tab.count()) {
+        await clickByDom(tab)
+        return
+    }
+
+    await page.evaluate(() => window.scrollTo(0, 0)).catch(() => {})
+    tab = page.getByRole('tab', { name: matcher }).first()
+    if (await tab.count()) {
+        await clickByDom(tab)
+        return
+    }
+
+    const fallback = page.locator('[role="tab"]', { hasText: tabName }).first()
+    if (await fallback.count()) {
+        await clickByDom(fallback)
+        return
+    }
+
+    throw new Error(`Tab tidak ditemukan: ${tabName}`)
+}
+
+const setOrientation = async (page, orientation) => {
+    await clickTab(page, 'Design Options')
+
+    const orientBox = page.locator('button[role="combobox"]').filter({ hasText: /Landscape|Portrait/i }).first()
+    if (!(await orientBox.count())) {
+        throw new Error('Control orientation tidak ditemukan')
+    }
+
+    await clickByDom(orientBox)
+    const targetLabel = orientation === 'landscape' ? 'Landscape (Credit Card Size)' : 'Portrait'
+    const option = page.getByRole('option', { name: targetLabel }).first()
+    if (!(await option.count())) {
+        throw new Error(`Option orientation tidak ditemukan: ${targetLabel}`)
+    }
+    await clickByDom(option)
+}
+
+const ensureUltraHd = async (page) => {
+    const ultra = page.locator('button:has-text("Ultra HD (Recommended)")').first()
+    if (!(await ultra.count())) {
+        throw new Error('Preset kualitas Ultra HD tidak ditemukan di halaman')
+    }
+    await ultra.evaluate((el) => el.click()).catch(() => {})
+}
+
+const downloadFromWeb = async (payload, outputPath) => {
+    const logoBuffer = await fetchRemoteImageBuffer(payload.logoUrl)
+    const photoBuffer = await fetchLocalPhotoBuffer(payload.photoPath)
+
+    const browser = await chromium.launch({ headless: true })
+    const context = await browser.newContext({
+        acceptDownloads: true,
+        viewport: { width: 1440, height: 2300 }
+    })
+    const page = await context.newPage()
+
+    try {
+        await page.goto('https://student.chat-tempmail.com/', {
+            waitUntil: 'networkidle',
+            timeout: 120000
+        })
+
+        await clickTab(page, 'Student ID Card')
+        await clickTab(page, 'ID Information')
+
+        await fillInput(page, 'fullName', payload.fullName)
+        await fillInput(page, 'studentId', payload.studentId)
+        await fillInput(page, 'faculty', payload.faculty)
+        await fillInput(page, 'universityName', payload.universityName)
+        await fillInput(page, 'universityWebsite', payload.universityWebsite)
+        await fillInput(page, 'universityAddress', payload.universityAddress)
+        await fillInput(page, 'validityEnd', payload.validityEnd)
+        await fillInput(page, 'officialSignature', payload.officialSignature)
+        await setComboboxByLabel(page, 'Degree Type', payload.programType)
+        await setComboboxByLabel(page, 'Enrollment Year', payload.enrollmentYear)
+
+        await setOrientation(page, payload.orientation)
+        await applyDefaultAssets(page, { logoBuffer, photoBuffer })
+        await ensureUltraHd(page)
+
+        const downloadButton = page.locator('button:has-text("Download Student ID")').first()
+        if (!(await downloadButton.count())) {
+            throw new Error('Tombol Download Student ID tidak ditemukan')
+        }
+
+        const downloadPromise = page.waitForEvent('download', { timeout: 90000 })
+        await downloadButton.evaluate((el) => el.click())
+        const download = await downloadPromise
+
+        const tmpPath = await download.path()
+        if (tmpPath) {
+            fs.copyFileSync(tmpPath, outputPath)
+        } else {
+            await download.saveAs(outputPath)
+        }
+
+        const stat = fs.statSync(outputPath)
+        return {
+            outputPath,
+            suggestedFilename: download.suggestedFilename(),
+            bytes: stat.size
+        }
+    } finally {
+        await context.close().catch(() => {})
+        await browser.close().catch(() => {})
+    }
+}
+
+const usage = () => {
+    return [
+        'Usage:',
+        'node scrape/studentid-terminal.js "Nama Mahasiswa" --output "tmp/student-id.png"',
+        '',
+        'Notes:',
+        '- Output di-generate 1:1 dari web asli (Download Student ID).',
+        '- Ultra HD preset dipakai otomatis.',
+        '- orientation default portrait.',
+        '- Student ID random format: 2025001001, 2025002002, dst.',
+        '- Valid Until random format: 2030/MM-DD.'
+    ].join('\n')
+}
+
+const runCli = async () => {
+    const args = parseArgs(process.argv.slice(2))
+    if (args.help === 'true' || args.h === 'true') {
+        console.log(usage())
+        return
+    }
+
+    const fullName = String(args.fullName || args._[0] || '').trim()
+    if (!fullName) {
+        throw new Error('Nama wajib diisi. Contoh: node scrape/studentid-terminal.js "Ahmad Fauzi"')
+    }
+
+    const payload = {
+        fullName,
+        studentId: args.studentId || generateStudentId(),
+        faculty: args.faculty || DEFAULTS.faculty,
+        programType: args.programType || DEFAULTS.programType,
+        enrollmentYear: args.enrollmentYear || DEFAULTS.enrollmentYear,
+        universityName: args.universityName || DEFAULTS.universityName,
+        universityWebsite: args.universityWebsite || DEFAULTS.universityWebsite,
+        universityAddress: args.universityAddress || DEFAULTS.universityAddress,
+        photoPath: DEFAULTS.defaultPhotoPath,
+        logoUrl: DEFAULTS.defaultLogoUrl,
+        validityEnd: args.validityEnd || generateValidityEnd(),
+        officialSignature: args.officialSignature || DEFAULTS.officialSignature,
+        orientation: normalizeOrientation(args.orientation || DEFAULTS.orientation)
+    }
+
+    const outputPath = ensureOutputPath(args.output, payload.studentId)
+    const result = await downloadFromWeb(payload, outputPath)
+
+    console.log(`OK: ${result.outputPath}`)
+    console.log(`SIZE: ${result.bytes} bytes`)
+    console.log(`FILENAME: ${result.suggestedFilename}`)
+    console.log(`FULL NAME: ${payload.fullName}`)
+    console.log(`FACULTY: ${payload.faculty}`)
+    console.log(`PROGRAM: ${payload.programType}`)
+    console.log(`ENROLLED: ${payload.enrollmentYear}`)
+    console.log(`STUDENT ID: ${payload.studentId}`)
+    console.log(`VALID UNTIL: ${payload.validityEnd}`)
+    console.log(`UNIVERSITY: ${payload.universityName}`)
+}
+
+const directRun = process.argv[1] ? path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname) : false
+
+if (directRun) {
+    runCli().catch((err) => {
+        console.error(`ERROR: ${err.message}`)
+        process.exitCode = 1
+    })
+}
+
+export { downloadFromWeb }

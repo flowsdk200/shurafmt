@@ -1,0 +1,22 @@
+{
+  "step": "login_form_parsed",
+  "at": "2026-04-11T12:32:41.665Z",
+  "action": "https://github.com/session",
+  "keys": [
+    "authenticity_token",
+    "add_account",
+    "login",
+    "password",
+    "webauthn-conditional",
+    "javascript-support",
+    "webauthn-support",
+    "webauthn-iuvpaa-support",
+    "return_to",
+    "allow_signup",
+    "client_id",
+    "integration",
+    "required_field_939c",
+    "timestamp",
+    "timestamp_secret"
+  ]
+}

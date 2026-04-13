@@ -3,7 +3,7 @@ import { chromium } from 'playwright'
 const ASITHA_ORIGIN = 'https://asitha.top'
 const ASITHA_API_BASE = 'https://back.asitha.top/api'
 const RECAPTCHA_SITE_KEY = '6LemKk8sAAAAAH5PB3f1EspbMlXjtwv5C8tiMHSm'
-const DEFAULT_REACTS = '🗿,🔥,🎉,😱'
+const DEFAULT_REACTS = '👍,❤️,😂,🙏'
 const LIMIT_COST = 30
 
 const spendLimit = (usersDb, jid, amount) => {
