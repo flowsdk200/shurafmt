@@ -6,6 +6,8 @@ const normalizeText = (value = '') => String(value || '').trim()
 
 const normalizeDigits = (value = '') => String(value || '').replace(/[^0-9]/g, '')
 
+const isCountryCodeNumber = (value = '') => /^62\d{7,15}$/.test(normalizeDigits(value))
+
 const toWaJid = (jid = '') => {
     const normalized = String(normalizeJid(jid) || jid || '').trim()
     const user = normalized.split('@')[0].split(':')[0]
@@ -43,6 +45,25 @@ const getSession = (jid) => {
 }
 
 const getTargetLabel = (jid) => toWaJid(jid).split('@')[0]
+
+const resolveConfessTarget = ({ msg, args = [] }) => {
+    const contextTarget = toWaJid(getTargetJid(msg, ''))
+    if (contextTarget) {
+        return { targetJid: contextTarget, source: 'context' }
+    }
+
+    const firstArg = normalizeText(args[0])
+    if (!firstArg) {
+        return { targetJid: '', source: 'none' }
+    }
+
+    const digits = normalizeDigits(firstArg)
+    if (!isCountryCodeNumber(digits)) {
+        return { targetJid: '', source: 'invalid_number' }
+    }
+
+    return { targetJid: `${digits}@s.whatsapp.net`, source: 'number' }
+}
 
 const buildInitMessage = (targetJid, maskedSender, message) => [
     `👋 Hey @${getTargetLabel(targetJid)}, ada confess anonim untukmu. Identitas pengirim disamarkan demi privasi.`,
@@ -169,17 +190,26 @@ export default {
             return sock.sendMessage(jid, {
                 text:
                     `Contoh penggunaan:\n` +
-                    `- ${prefix + cmd} 628xxx pesan rahasia\n\n` +
+                    `- ${prefix + cmd} 6285226344606 pesan rahasia\n\n` +
                     `Tambahan:\n` +
                     `- ${prefix + cmd} stop (stop confess)\n` +
-                    `- ${prefix + cmd} tolak (khusus penerima)`
+                    `- ${prefix + cmd} tolak (khusus penerima)\n\n` +
+                    `Catatan:\n` +
+                    `- Nomor wajib pakai kode negara (contoh: 6285226344606)`
             }, { quoted: msg })
         }
 
-        const targetJid = toWaJid(getTargetJid(msg, text))
-        const message = normalizeText(args.slice(1).join(' '))
+        const target = resolveConfessTarget({ msg, args })
+        const targetJid = target.targetJid
+        const message = normalizeText(target.source === 'number' ? args.slice(1).join(' ') : args.join(' '))
 
         if (!targetJid) {
+            if (target.source === 'invalid_number') {
+                return sock.sendMessage(jid, {
+                    text: '❌ Format nomor wajib pakai kode negara. Contoh: 6285226344606'
+                }, { quoted: msg })
+            }
+
             return sock.sendMessage(jid, {
                 text: '❌ Nomor tujuan tidak valid. Gunakan nomor WA, mention, atau reply target.'
             }, { quoted: msg })
